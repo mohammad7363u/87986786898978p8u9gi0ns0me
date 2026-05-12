@@ -1,0 +1,618 @@
+name: Build EasyMC-Core
+
+on: [push, workflow_dispatch]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - name: Create project structure
+        run: |
+          mkdir -p src/main/java/com/mamad396/easymc
+          mkdir -p src/main/resources
+          mkdir -p releases
+
+      - name: Create plugin.yml
+        run: |
+          cat > src/main/resources/plugin.yml << 'EOF'
+          name: EasyMC-Core
+          version: 1.0
+          main: com.mamad396.easymc.EasyMCCore
+          api-version: '1.20'
+          author: mamad396
+          description: Complete core plugin for EasyMC server
+          softdepend: [Vault, PlaceholderAPI, LuckPerms, WorldEdit]
+          
+          commands:
+            easymc:
+              description: Main plugin command
+              usage: /easymc <reload/info>
+              aliases: [emc]
+            admin1:
+              description: Clear dropped items
+            admin2:
+              description: Staff mode
+            admin3:
+              description: Clear chat
+            admin4:
+              description: Heal yourself
+            admin5:
+              description: Feed yourself
+            admin6:
+              description: God mode toggle
+            admin7:
+              description: Fly mode toggle
+            admin8:
+              description: Vanish mode toggle
+            admin9:
+              description: Kill all mobs
+            admin10:
+              description: Repair held item
+            admin11:
+              description: Set time
+            admin12:
+              description: Set weather
+            adminhelp:
+              description: Admin help menu
+            bal:
+              description: Check balance
+              aliases: [balance, money, cash]
+            pay:
+              description: Pay money to player
+            baltop:
+              description: Top balances
+              aliases: [topmoney, richest]
+            lag:
+              description: Check clearLag time
+            lagnow:
+              description: Force clear items
+            laghelp:
+              description: ClearLag help
+            arena:
+              description: Warp to PvP
+            crates:
+              description: Warp to crates
+            nether:
+              description: Warp to nether
+            overworld:
+              description: Warp to overworld
+            reward:
+              description: Open rewards
+            restartauto:
+              description: Auto restart
+            staffmode:
+              description: Staff mode
+            menu:
+              description: Open settings
+              aliases: [settings, profile, playermenu]
+            sth:
+              description: Set home
+            ho:
+              description: Go home
+            easyshop:
+              description: Open shop
+              aliases: [shop]
+            easybroadcast:
+              description: Broadcast message
+            easycmdspy:
+              description: Command spy
+            auctionhouse:
+              description: Auction house
+              aliases: [ah, actions, actionhouse]
+            ahopen:
+              description: Open AH
+            wshop:
+              description: Warp to shop
+            vote:
+              description: Vote links
+            website:
+              description: Website link
+            cmdshort:
+              description: Command shorter
+            changepass:
+              description: Change password
+              aliases: [changepassword]
+            sell:
+              description: Sell items
+              aliases: [sellg, easysell]
+            ac:
+              description: AntiCheat command
+            auth:
+              description: Auth command
+            discord:
+              description: Discord link
+              aliases: [dc]
+            stats:
+              description: View player stats
+              aliases: [kd]
+            repair:
+              description: Repair item
+              aliases: [fix, mend, rep]
+            repairsleft:
+              description: Check repairs left
+              aliases: [repaircount, myrepairs, fixes, rleft]
+            keepinv:
+              description: Buy keep inventory
+              aliases: [keepinventory, keepitems, ki, invkeep]
+            quest:
+              description: Quest system
+              aliases: [q, quests, quet]
+          EOF
+
+      - name: Create config.yml
+        run: |
+          cat > src/main/resources/config.yml << 'ENDOFCONFIG'
+          # ╔══════════════════════════════════════════════════════════╗
+          # ║           EasyMC-Core Configuration                     ║
+          # ║           Made by mamad396 with ❤️                     ║
+          # ╚══════════════════════════════════════════════════════════╝
+
+          # Plugin prefix
+          prefix: "&8&l[&5&l⚡&8&l] &7"
+
+          # ═══════════════════════════════════════════════════════════
+          # MODULES - Enable/Disable features
+          # ═══════════════════════════════════════════════════════════
+          modules:
+            admin-panel: true
+            anti-auto-totem: true
+            economy: true
+            clearlag: true
+            block-commands: true
+            command-shortcuts: true
+            kill-messages: true
+            keep-inventory: true
+            repair-system: true
+            quest-system: true
+            death-skull: true
+            crystal-tracker: true
+
+          # ═══════════════════════════════════════════════════════════
+          # ADMIN PANEL
+          # ═══════════════════════════════════════════════════════════
+          admin-panel:
+            prefix: "&8[&5👾&8] &7"
+            success-prefix: "&8[&e♫&8] &a"
+            permission: "easymc.admin"
+
+          # ═══════════════════════════════════════════════════════════
+          # ANTI AUTO TOTEM
+          # ═══════════════════════════════════════════════════════════
+          anti-totem:
+            enabled: true
+            prefix: "&8&l[&c&l!&8&l] &7"
+            max-cps: 15
+            max-totem-per-second: 3
+            max-flags-before-kick: 8
+            kick-message: "&c&lAuto Totem Detected!"
+            alert-permission: "easymc.alerts"
+
+          # ═══════════════════════════════════════════════════════════
+          # ECONOMY
+          # ═══════════════════════════════════════════════════════════
+          economy:
+            prefix: "&8&l[&e&l💰&8&l]"
+            currency-symbol: "$"
+            error-sound: BLOCK_NOTE_BLOCK_BASS
+            success-sound: BLOCK_NOTE_BLOCK_CHIME
+            baltop-players: 10
+
+          # ═══════════════════════════════════════════════════════════
+          # CLEARLAG
+          # ═══════════════════════════════════════════════════════════
+          clearlag:
+            prefix: "&8&l[&e&lClear&8&l]"
+            interval-seconds: 100
+            permission-admin: "easymc.clearlag.admin"
+
+          # ═══════════════════════════════════════════════════════════
+          # BLOCK COMMANDS
+          # ═══════════════════════════════════════════════════════════
+          block-commands:
+            prefix: "&8&l[&c&l!&8&l] &7"
+            blocked-message: "&cBlocked."
+            blocked-prefixes:
+              - "bukkit:"
+              - "spigot:"
+              - "paper:"
+              - "purpur:"
+              - "minecraft:"
+              - "essentials:"
+              - "fawe:"
+              - "worldedit:"
+              - "worldguard:"
+              - "luckperms:"
+              - "placeholderapi:"
+              - "vault:"
+              - "litebans:"
+              - "viaversion:"
+              - "protocollib:"
+              - "skript:"
+
+          # ═══════════════════════════════════════════════════════════
+          # KILL MESSAGES
+          # ═══════════════════════════════════════════════════════════
+          kill-messages:
+            prefix: "&8&l[&c&l☠&8&l]"
+            enable-death-skull: true
+            enable-crystal-tracker: true
+            messages:
+              - "&f%killer% &4&lobliterated &f%victim% &4&lusing %weapon%"
+              - "&f%killer% &4&lsent &f%victim% &4&lto the &8shadow realm &4&lwith %weapon%"
+              - "&f%victim% &4&lwas &csacrificed &4&lby &f%killer% &4&l- %weapon%"
+              - "&f%killer% &4&lmade &f%victim% &4&ldisappear using %weapon%"
+              - "&f%victim% &4&lmet their &4end &4&lat the hands of &f%killer%"
+              - "&f%killer% &4&ldestroyed &f%victim% &4&lwith &l%weapon%"
+              - "&f%victim% &4&lwas &cerased &4&lby &f%killer%"
+              - "&f%killer% &4&lexecuted &f%victim% &4&lwith %weapon%"
+              - "&f%victim% &4&lgot &ccleaved &4&lby &f%killer%"
+              - "&f%killer% &4&lslammed &f%victim% &4&linto the &8ground &4&lwith %weapon%"
+            natural-death-messages:
+              FALL: "&c&lFall Damage"
+              LAVA: "&cLava"
+              DROWN: "&bDrowning"
+              VOID: "&5The Void"
+              FIRE: "&cFire"
+              STARVATION: "&eStarvation"
+              POISON: "&aPoison"
+              MAGIC: "&dMagic"
+              WITHER: "&8Wither"
+              EXPLOSION: "&cExplosion"
+              LIGHTNING: "&eLightning"
+              SUFFOCATION: "&8Suffocation"
+              ENTITY_ATTACK: "&cMob Attack"
+              THORNS: "&aThorns"
+              CRAMMING: "&cCramming"
+              FLY_INTO_WALL: "&cKinetic Energy"
+              HOT_FLOOR: "&cMagma Block"
+              FREEZE: "&bFreezing"
+              SONIC_BOOM: "&3Sonic Boom"
+            respawn-title: "&4&l☠ &7&lYOU DIED &4&l☠"
+            respawn-subtitle: "&f&lBetter luck next time..."
+
+          # ═══════════════════════════════════════════════════════════
+          # KEEP INVENTORY
+          # ═══════════════════════════════════════════════════════════
+          keep-inventory:
+            prefix: "&d&l🎒"
+            price-per-minute: 1000
+            max-minutes: 120
+            min-minutes: 1
+            permission-vip: "easymc.keepinv.vip"
+            permission-mvp: "easymc.keepinv.mvp"
+
+          # ═══════════════════════════════════════════════════════════
+          # REPAIR SYSTEM
+          # ═══════════════════════════════════════════════════════════
+          repair:
+            prefix: "&d&l🔧"
+            costs:
+              NETHERITE: 3000
+              DIAMOND: 2000
+              GOLDEN: 800
+              IRON: 500
+              STONE: 300
+              WOODEN: 150
+              CHAINMAIL: 400
+              LEATHER: 200
+              DEFAULT: 500
+            max-repairs-default: 2
+            max-repairs-vip: 5
+            max-repairs-mvp: 10
+            permission-vip: "easymc.repair.vip"
+            permission-mvp: "easymc.repair.mvp"
+
+          # ═══════════════════════════════════════════════════════════
+          # QUEST SYSTEM
+          # ═══════════════════════════════════════════════════════════
+          quest:
+            prefix: "&8&l[&6&l⚔&8&l] &7"
+            miner-target: 50000
+            killer-target: 20
+            reward-command: "lp user %player% parent add pro"
+            permission-admin: "easymc.quest.admin"
+
+          # ═══════════════════════════════════════════════════════════
+          # LOAD MESSAGE
+          # ═══════════════════════════════════════════════════════════
+          load-message:
+            - "&5╔══════════════════════════════════╗"
+            - "&5║   &d&l✨ EasyMC-Core v1.0 ✨   &5║"
+            - "&5║   &7Made by &fmamad396 &7with ❤️ &5║"
+            - "&5║   &a/easymc help &7- Commands  &5║"
+            - "&5╚══════════════════════════════════╝"
+          ENDOFCONFIG
+
+      - name: Create EasyMCCore.java
+        run: |
+          cat > src/main/java/com/mamad396/easymc/EasyMCCore.java << 'EOF'
+          package com.mamad396.easymc;
+
+          import org.bukkit.Bukkit;
+          import org.bukkit.ChatColor;
+          import org.bukkit.plugin.java.JavaPlugin;
+          import java.util.List;
+
+          public class EasyMCCore extends JavaPlugin {
+              private static EasyMCCore instance;
+              
+              @Override
+              public void onEnable() {
+                  instance = this;
+                  saveDefaultConfig();
+                  
+                  // Register commands
+                  getCommand("easymc").setExecutor(new MainCommand(this));
+                  
+                  // Register listeners if modules enabled
+                  if (getConfig().getBoolean("modules.kill-messages", true))
+                      getServer().getPluginManager().registerEvents(new KillListener(this), this);
+                  if (getConfig().getBoolean("modules.anti-auto-totem", true))
+                      getServer().getPluginManager().registerEvents(new AntiTotemListener(this), this);
+                  if (getConfig().getBoolean("modules.quest-system", true))
+                      getServer().getPluginManager().registerEvents(new QuestListener(this), this);
+                  if (getConfig().getBoolean("modules.clearlag", true))
+                      new ClearLagTask(this).runTaskTimer(this, 20L, 20L * getConfig().getInt("clearlag.interval-seconds", 100));
+                  
+                  printLoadMessage();
+              }
+              
+              private void printLoadMessage() {
+                  List<String> msg = getConfig().getStringList("load-message");
+                  if (msg != null) for (String line : msg)
+                      Bukkit.getConsoleSender().sendMessage(ChatColor.translateAlternateColorCodes('&', line));
+                  getLogger().info("Enabled successfully!");
+              }
+              
+              public static EasyMCCore getInstance() { return instance; }
+              public String getMsg(String path) {
+                  return ChatColor.translateAlternateColorCodes('&', getConfig().getString("prefix", "") + " " + getConfig().getString(path, ""));
+              }
+              public String getMsgRaw(String path) {
+                  return ChatColor.translateAlternateColorCodes('&', getConfig().getString(path, ""));
+              }
+          }
+          EOF
+
+      - name: Create all Java files
+        run: |
+          # MainCommand
+          cat > src/main/java/com/mamad396/easymc/MainCommand.java << 'EOF'
+          package com.mamad396.easymc;
+          import org.bukkit.command.*;
+          import org.bukkit.entity.Player;
+          public class MainCommand implements CommandExecutor {
+              private final EasyMCCore plugin;
+              public MainCommand(EasyMCCore p) { this.plugin = p; }
+              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
+                  if (a.length == 0 || a[0].equalsIgnoreCase("help")) {
+                      s.sendMessage(plugin.getMsgRaw("prefix") + " &6Commands:");
+                      s.sendMessage("  &e/easymc reload &7- Reload config");
+                      s.sendMessage("  &e/easymc info &7- Plugin info");
+                      return true;
+                  }
+                  if (a[0].equalsIgnoreCase("reload")) {
+                      plugin.reloadConfig();
+                      s.sendMessage(plugin.getMsg("prefix") + " &aConfig reloaded!");
+                  }
+                  return true;
+              }
+          }
+          EOF
+
+          # KillListener
+          cat > src/main/java/com/mamad396/easymc/KillListener.java << 'EOF'
+          package com.mamad396.easymc;
+          import org.bukkit.*;
+          import org.bukkit.entity.Player;
+          import org.bukkit.event.*;
+          import org.bukkit.event.entity.PlayerDeathEvent;
+          import org.bukkit.event.player.PlayerRespawnEvent;
+          import org.bukkit.inventory.ItemStack;
+          import java.util.*;
+          public class KillListener implements Listener {
+              private final EasyMCCore plugin;
+              public KillListener(EasyMCCore p) { this.plugin = p; }
+              
+              @EventHandler
+              public void onDeath(PlayerDeathEvent e) {
+                  Player v = e.getEntity();
+                  Player k = v.getKiller();
+                  String cause = v.getLastDamageCause() != null ? v.getLastDamageCause().getCause().name() : "UNKNOWN";
+                  
+                  if (k != null && k != v) {
+                      String weapon = k.getInventory().getItemInMainHand().getType().name().replace("_", " ");
+                      List<String> msgs = plugin.getConfig().getStringList("kill-messages.messages");
+                      String msg = msgs.get(new Random().nextInt(msgs.size()));
+                      msg = plugin.getMsgRaw("kill-messages.prefix") + " " + msg.replace("%killer%", k.getName()).replace("%victim%", v.getName()).replace("%weapon%", "&e" + weapon);
+                      e.setDeathMessage(ChatColor.translateAlternateColorCodes('&', msg));
+                      if (plugin.getConfig().getBoolean("modules.death-skull", true))
+                          v.getWorld().dropItemNaturally(v.getLocation(), new ItemStack(Material.PLAYER_HEAD));
+                  } else {
+                      String dm = plugin.getConfig().getString("kill-messages.natural-death-messages." + cause, "&fUnknown");
+                      String msg = plugin.getMsgRaw("kill-messages.prefix") + " &7" + v.getName() + " &4died &8[&c" + dm + "&8]";
+                      e.setDeathMessage(ChatColor.translateAlternateColorCodes('&', msg));
+                  }
+              }
+              
+              @EventHandler
+              public void onRespawn(PlayerRespawnEvent e) {
+                  Player p = e.getPlayer();
+                  p.sendTitle(
+                      plugin.getMsgRaw("kill-messages.respawn-title"),
+                      plugin.getMsgRaw("kill-messages.respawn-subtitle"),
+                      10, 40, 10
+                  );
+              }
+          }
+          EOF
+
+          # AntiTotemListener
+          cat > src/main/java/com/mamad396/easymc/AntiTotemListener.java << 'EOF'
+          package com.mamad396.easymc;
+          import org.bukkit.Material;
+          import org.bukkit.entity.Player;
+          import org.bukkit.event.*;
+          import org.bukkit.event.inventory.InventoryClickEvent;
+          import org.bukkit.event.player.PlayerInteractEvent;
+          import java.util.*;
+          public class AntiTotemListener implements Listener {
+              private final EasyMCCore plugin;
+              private final Map<UUID, Long> lastClick = new HashMap<>();
+              private final Map<UUID, Integer> cpsCount = new HashMap<>();
+              private final Map<UUID, Integer> flags = new HashMap<>();
+              
+              public AntiTotemListener(EasyMCCore p) { this.plugin = p; }
+              
+              @EventHandler
+              public void onClick(InventoryClickEvent e) {
+                  if (!(e.getWhoClicked() instanceof Player)) return;
+                  Player p = (Player) e.getWhoClicked();
+                  if (e.getCurrentItem() == null || e.getCurrentItem().getType() != Material.TOTEM_OF_UNDYING) return;
+                  
+                  long now = System.currentTimeMillis();
+                  Long last = lastClick.get(p.getUniqueId());
+                  if (last != null && now - last < 50) {
+                      int f = flags.getOrDefault(p.getUniqueId(), 0) + 1;
+                      flags.put(p.getUniqueId(), f);
+                      int max = plugin.getConfig().getInt("anti-totem.max-flags-before-kick", 8);
+                      if (f >= max) {
+                          p.kickPlayer(plugin.getMsgRaw("anti-totem.kick-message"));
+                          flags.remove(p.getUniqueId());
+                          return;
+                      }
+                      p.sendMessage(plugin.getMsg("anti-totem.prefix") + " §cAuto Totem! [§c" + f + "§7/§c" + max + "§7]");
+                  }
+                  lastClick.put(p.getUniqueId(), now);
+              }
+          }
+          EOF
+
+          # QuestListener
+          cat > src/main/java/com/mamad396/easymc/QuestListener.java << 'EOF'
+          package com.mamad396.easymc;
+          import org.bukkit.Bukkit;
+          import org.bukkit.Material;
+          import org.bukkit.entity.Player;
+          import org.bukkit.event.*;
+          import org.bukkit.event.block.BlockBreakEvent;
+          import org.bukkit.event.entity.PlayerDeathEvent;
+          import java.util.*;
+          public class QuestListener implements Listener {
+              private final EasyMCCore plugin;
+              private final Map<UUID, Integer> mineProgress = new HashMap<>();
+              private final Map<UUID, Integer> killProgress = new HashMap<>();
+              private final Set<UUID> minerDone = new HashSet<>();
+              private final Set<UUID> killerDone = new HashSet<>();
+              private final Set<UUID> advancedDone = new HashSet<>();
+              
+              public QuestListener(EasyMCCore p) { this.plugin = p; }
+              
+              @EventHandler
+              public void onBreak(BlockBreakEvent e) {
+                  Material m = e.getBlock().getType();
+                  if (m.name().contains("ORE") || m.name().contains("STONE") || m == Material.DEEPSLATE || m == Material.NETHERRACK) {
+                      UUID id = e.getPlayer().getUniqueId();
+                      int prog = mineProgress.getOrDefault(id, 0) + 1;
+                      mineProgress.put(id, prog);
+                      int target = plugin.getConfig().getInt("quest.miner-target", 50000);
+                      if (!minerDone.contains(id) && prog >= target) {
+                          minerDone.add(id);
+                          giveReward(e.getPlayer(), "Miner");
+                      }
+                  }
+              }
+              
+              @EventHandler
+              public void onKill(PlayerDeathEvent e) {
+                  Player k = e.getEntity().getKiller();
+                  if (k == null) return;
+                  UUID id = k.getUniqueId();
+                  int prog = killProgress.getOrDefault(id, 0) + 1;
+                  killProgress.put(id, prog);
+                  int target = plugin.getConfig().getInt("quest.killer-target", 20);
+                  if (!killerDone.contains(id) && prog >= target) {
+                      killerDone.add(id);
+                      giveReward(k, "Killer");
+                  }
+              }
+              
+              private void giveReward(Player p, String quest) {
+                  String cmd = plugin.getConfig().getString("quest.reward-command", "say %player% completed %quest%!").replace("%player%", p.getName()).replace("%quest%", quest);
+                  Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+                  p.sendMessage(plugin.getMsg("quest.prefix") + " §aQuest Complete: §e" + quest + " §a! Reward given!");
+                  p.sendTitle("§6⚔ QUEST COMPLETE! ⚔", "§7" + quest + " Quest Complete!", 10, 60, 10);
+              }
+          }
+          EOF
+
+          # ClearLagTask
+          cat > src/main/java/com/mamad396/easymc/ClearLagTask.java << 'EOF'
+          package com.mamad396.easymc;
+          import org.bukkit.Bukkit;
+          import org.bukkit.entity.Item;
+          import org.bukkit.scheduler.BukkitRunnable;
+          public class ClearLagTask extends BukkitRunnable {
+              private final EasyMCCore plugin;
+              public ClearLagTask(EasyMCCore p) { this.plugin = p; }
+              public void run() {
+                  int count = 0;
+                  for (org.bukkit.World w : Bukkit.getWorlds())
+                      for (Item i : w.getEntitiesByClass(Item.class)) { i.remove(); count++; }
+                  if (count > 0 && plugin.getConfig().getBoolean("modules.clearlag", true))
+                      Bukkit.broadcastMessage(plugin.getMsg("clearlag.prefix") + " §aCleared " + count + " items!");
+              }
+          }
+          EOF
+
+      - name: Create pom.xml
+        run: |
+          cat > pom.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <project xmlns="http://maven.apache.org/POM/4.0.0"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>com.mamad396</groupId>
+              <artifactId>EasyMC-Core</artifactId>
+              <version>1.0</version>
+              <packaging>jar</packaging>
+              <properties><java.version>17</java.version></properties>
+              <repositories>
+                  <repository><id>papermc</id><url>https://repo.papermc.io/repository/maven-public/</url></repository>
+              </repositories>
+              <dependencies>
+                  <dependency><groupId>io.papermc.paper</groupId><artifactId>paper-api</artifactId><version>1.20.4-R0.1-SNAPSHOT</version><scope>provided</scope></dependency>
+              </dependencies>
+              <build><plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.11.0</version><configuration><source>17</source><target>17</target></configuration></plugin></plugins></build>
+          </project>
+          EOF
+
+      - name: Build
+        run: mvn clean package -B
+
+      - name: Copy to releases
+        run: cp target/EasyMC-Core-1.0.jar releases/
+
+      - name: Commit
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add releases/EasyMC-Core-1.0.jar
+          git commit -m "EasyMC-Core v1.0" || echo "No changes"
+          git push
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EasyMC-Core
+          path: target/EasyMC-Core-1.0.jar
