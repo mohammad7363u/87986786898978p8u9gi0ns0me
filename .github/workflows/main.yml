@@ -32,42 +32,121 @@ jobs:
         run: |
           cat > src/main/resources/plugin.yml << 'EOF'
           name: JsonPaster
-          version: 3.0
+          version: 3.1
           main: com.mamad396.jsonpaster.JsonPaster
           api-version: '1.20'
           author: mamad396
-
+          description: Paste & Copy JSON structures
+          softdepend: [WorldEdit]
           commands:
             pastejson:
               description: Paste a JSON file
               usage: /pastejson <filename>
+              aliases: [pj, pastej]
             copyjson:
               description: Copy selection to JSON file
               usage: /copyjson <filename>
+              aliases: [cj, copyj]
             listjson:
               description: List all JSON files
               usage: /listjson
+              aliases: [lj, listj]
             deletejson:
               description: Delete a JSON file
               usage: /deletejson <filename>
+              aliases: [dj, delj]
             infojson:
-              description: Get info about a JSON file
+              description: Show info about a JSON file
               usage: /infojson <filename>
+              aliases: [ij, infoj]
             rotatejson:
               description: Rotate a JSON file
               usage: /rotatejson <filename> <90/180/270>
+              aliases: [rj, rotj]
             mirrorjson:
               description: Mirror a JSON file
               usage: /mirrorjson <filename> <x/z>
+              aliases: [mj, mirj]
             replacejson:
-              description: Replace blocks in a JSON file
-              usage: /replacejson <filename> <from_block> <to_block>
+              description: Replace blocks in JSON file
+              usage: /replacejson <filename> <from> <to>
+              aliases: [repj]
             previewjson:
-              description: Preview a JSON file before pasting
+              description: Preview a JSON file
               usage: /previewjson <filename>
+              aliases: [prevj]
             undopaste:
               description: Undo last paste
               usage: /undopaste
+              aliases: [up, undoj]
+            jsonpaster:
+              description: Main plugin command
+              usage: /jsonpaster reload
+              aliases: [jp]
+          permissions:
+            jsonpaster.use:
+              description: Use basic commands
+              default: op
+            jsonpaster.admin:
+              description: Admin commands
+              default: op
+          EOF
+
+      - name: Create config.yml
+        run: |
+          cat > src/main/resources/config.yml << 'EOF'
+          # JsonPaster Pro Configuration
+          # Plugin by mamad396
+
+          settings:
+            # Maximum file size in KB (0 = unlimited)
+            max-file-size: 5000
+            # Auto-reload config on change
+            auto-reload: true
+            # Save undo history
+            save-undo: true
+            # Maximum undo history per player
+            max-undo: 10
+
+          messages:
+            prefix: "&8[&bJsonPaster&8]&r"
+            paste-success: "&a✅ Successfully pasted &e%count% &ablocks from &e%file%&a!"
+            paste-error: "&c❌ Error pasting file: &e%error%"
+            paste-notfound: "&c❌ File not found: &e%file%"
+            copy-success: "&a📋 Copied &e%count% &ablocks to &e%file%&a!"
+            copy-error: "&c❌ Error copying: Make a WorldEdit selection first!"
+            copy-no-we: "&c❌ WorldEdit not found! Please install WorldEdit."
+            list-header: "&6📁 JSON Files &7(%count% files)&6:"
+            list-entry: "  &7- &e%file% &7(%size% KB)"
+            list-empty: "&7📁 No JSON files found."
+            delete-success: "&a🗑️ Deleted: &e%file%"
+            delete-error: "&c❌ Could not delete: &e%file%"
+            info-header: "&6📊 File Info: &e%file%"
+            info-blocks: "  &7Blocks: &e%blocks%"
+            info-size: "  &7Size: &e%size% KB"
+            info-date: "  &7Modified: &e%date%"
+            rotate-success: "&a🔄 Rotated &e%file% &aby &e%angle%°"
+            rotate-error: "&c❌ Angle must be 90, 180, or 270"
+            mirror-success: "&a🪞 Mirrored &e%file% &aon &e%axis% &aaxis"
+            mirror-error: "&c❌ Axis must be x or z"
+            replace-success: "&a🔧 Replaced &e%count% &ablocks from &e%from% &ato &e%to%"
+            replace-error: "&c❌ Error replacing blocks"
+            preview-header: "&6🔍 Preview: &e%file% &7(%count% blocks)"
+            preview-size: "  &7Dimensions: &e%size%"
+            undo-success: "&a↩️ Undone &e%count% &ablocks!"
+            undo-empty: "&7Nothing to undo."
+            reload-success: "&a⚙️ Config reloaded!"
+            no-permission: "&c❌ You don't have permission!"
+            player-only: "&c❌ Only players can use this command!"
+            usage: "&7Usage: &e%usage%"
+
+          # Custom load message (supports color codes)
+          load-message:
+            - "&b╔══════════════════════════════════╗"
+            - "&b║   &f✨ &eJsonPaster Pro &fv3.1 &f✨   &b║"
+            - "&b║   &7Made by &fmamad396 &7with ❤️   &b║"
+            - "&b║   &a/jp help &7- Show commands  &b║"
+            - "&b╚══════════════════════════════════╝"
           EOF
 
       - name: Create JsonPaster.java
@@ -75,13 +154,26 @@ jobs:
           cat > src/main/java/com/mamad396/jsonpaster/JsonPaster.java << 'EOF'
           package com.mamad396.jsonpaster;
 
+          import org.bukkit.Bukkit;
+          import org.bukkit.ChatColor;
           import org.bukkit.plugin.java.JavaPlugin;
           import java.io.File;
+          import java.util.List;
 
           public class JsonPaster extends JavaPlugin {
+              
+              private static JsonPaster instance;
+              private ConfigManager configManager;
+              
               @Override
               public void onEnable() {
+                  instance = this;
+                  
                   if (!getDataFolder().exists()) getDataFolder().mkdirs();
+                  
+                  configManager = new ConfigManager(this);
+                  configManager.loadConfig();
+                  
                   getCommand("pastejson").setExecutor(new PasteJsonCommand(this));
                   getCommand("copyjson").setExecutor(new CopyJsonCommand(this));
                   getCommand("listjson").setExecutor(new ListJsonCommand(this));
@@ -91,8 +183,115 @@ jobs:
                   getCommand("mirrorjson").setExecutor(new MirrorJsonCommand(this));
                   getCommand("replacejson").setExecutor(new ReplaceJsonCommand(this));
                   getCommand("previewjson").setExecutor(new PreviewJsonCommand(this));
-                  getCommand("undopaste").setExecutor(new UndoPasteCommand(this));
-                  getLogger().info("JsonPaster Pro v3.0 enabled!");
+                  getCommand("undopaste").setExecutor(new UndoPasteCommand());
+                  getCommand("jsonpaster").setExecutor(new MainCommand(this));
+                  
+                  printLoadMessage();
+              }
+              
+              private void printLoadMessage() {
+                  List<String> msg = getConfig().getStringList("load-message");
+                  if (msg != null && !msg.isEmpty()) {
+                      for (String line : msg) {
+                          Bukkit.getConsoleSender().sendMessage(ChatColor.translateAlternateColorCodes('&', line));
+                      }
+                  }
+                  getLogger().info("v" + getDescription().getVersion() + " enabled successfully!");
+              }
+              
+              public static JsonPaster getInstance() { return instance; }
+              public ConfigManager getConfigManager() { return configManager; }
+              
+              @Override
+              public void onDisable() {
+                  getLogger().info("JsonPaster Pro disabled. Goodbye!");
+              }
+          }
+          EOF
+
+      - name: Create ConfigManager.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/ConfigManager.java << 'EOF'
+          package com.mamad396.jsonpaster;
+
+          import org.bukkit.ChatColor;
+          import org.bukkit.configuration.file.FileConfiguration;
+          import java.io.File;
+
+          public class ConfigManager {
+              private final JsonPaster plugin;
+              private FileConfiguration config;
+              
+              public ConfigManager(JsonPaster plugin) {
+                  this.plugin = plugin;
+              }
+              
+              public void loadConfig() {
+                  plugin.saveDefaultConfig();
+                  plugin.reloadConfig();
+                  config = plugin.getConfig();
+              }
+              
+              public String getMessage(String key) {
+                  String prefix = config.getString("messages.prefix", "&8[&bJsonPaster&8]&r");
+                  String msg = config.getString("messages." + key, "Message not found: " + key);
+                  return ChatColor.translateAlternateColorCodes('&', prefix + " " + msg);
+              }
+              
+              public String getMessageRaw(String key) {
+                  return ChatColor.translateAlternateColorCodes('&', 
+                      config.getString("messages." + key, ""));
+              }
+              
+              public int getMaxFileSize() {
+                  return config.getInt("settings.max-file-size", 5000);
+              }
+              
+              public int getMaxUndo() {
+                  return config.getInt("settings.max-undo", 10);
+              }
+          }
+          EOF
+
+      - name: Create MainCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/MainCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+
+          import org.bukkit.command.*;
+          import org.bukkit.entity.Player;
+
+          public class MainCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              
+              public MainCommand(JsonPaster plugin) { this.plugin = plugin; }
+              
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
+                      sender.sendMessage(plugin.getConfigManager().getMessageRaw("prefix").replace("&r","") + " &6Commands:");
+                      sender.sendMessage("  &e/pastejson <file> &7- Paste a structure");
+                      sender.sendMessage("  &e/copyjson <file> &7- Copy selection to file");
+                      sender.sendMessage("  &e/listjson &7- List all files");
+                      sender.sendMessage("  &e/infojson <file> &7- File information");
+                      sender.sendMessage("  &e/rotatejson <file> <90/180/270> &7- Rotate");
+                      sender.sendMessage("  &e/mirrorjson <file> <x/z> &7- Mirror");
+                      sender.sendMessage("  &e/replacejson <file> <from> <to> &7- Replace blocks");
+                      sender.sendMessage("  &e/previewjson <file> &7- Preview before paste");
+                      sender.sendMessage("  &e/undopaste &7- Undo last paste");
+                      sender.sendMessage("  &e/jp reload &7- Reload config");
+                      return true;
+                  }
+                  
+                  if (args[0].equalsIgnoreCase("reload")) {
+                      if (!sender.hasPermission("jsonpaster.admin")) {
+                          sender.sendMessage(plugin.getConfigManager().getMessage("no-permission"));
+                          return true;
+                      }
+                      plugin.getConfigManager().loadConfig();
+                      sender.sendMessage(plugin.getConfigManager().getMessage("reload-success"));
+                  }
+                  return true;
               }
           }
           EOF
@@ -104,7 +303,6 @@ jobs:
 
           import org.bukkit.*;
           import org.bukkit.block.Block;
-          import org.bukkit.block.data.BlockData;
           import org.bukkit.command.*;
           import org.bukkit.entity.Player;
           import java.io.*;
@@ -119,14 +317,27 @@ jobs:
 
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-                  if (!(sender instanceof Player)) return true;
-                  Player p = (Player) sender;
-                  if (args.length < 1) { p.sendMessage("Usage: /pastejson <filename>"); return true; }
+                  if (!(sender instanceof Player)) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("player-only"));
+                      return true;
+                  }
+                  if (!sender.hasPermission("jsonpaster.use")) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("no-permission"));
+                      return true;
+                  }
+                  if (args.length < 1) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("usage").replace("%usage%", "/pastejson <filename>"));
+                      return true;
+                  }
 
+                  Player p = (Player) sender;
                   String fn = args[0];
                   if (!fn.endsWith(".json")) fn += ".json";
                   File f = new File(plugin.getDataFolder(), fn);
-                  if (!f.exists()) { p.sendMessage("File not found: " + fn); return true; }
+                  if (!f.exists()) {
+                      p.sendMessage(plugin.getConfigManager().getMessage("paste-notfound").replace("%file%", fn));
+                      return true;
+                  }
 
                   try {
                       String content = new String(Files.readAllBytes(f.toPath())).trim();
@@ -166,9 +377,11 @@ jobs:
                           }
                       }
                       undoMap.put(p.getUniqueId(), undoList);
-                      p.sendMessage("Pasted " + pasted + " blocks! Use /undopaste to undo.");
+                      p.sendMessage(plugin.getConfigManager().getMessage("paste-success")
+                          .replace("%count%", String.valueOf(pasted))
+                          .replace("%file%", fn));
                   } catch (Exception e) {
-                      p.sendMessage("Error: " + e.getMessage());
+                      p.sendMessage(plugin.getConfigManager().getMessage("paste-error").replace("%error%", e.getMessage()));
                   }
                   return true;
               }
@@ -191,7 +404,10 @@ jobs:
                   if (!(sender instanceof Player)) return true;
                   Player p = (Player) sender;
                   List<String> undoList = PasteJsonCommand.undoMap.remove(p.getUniqueId());
-                  if (undoList == null || undoList.isEmpty()) { p.sendMessage("Nothing to undo!"); return true; }
+                  if (undoList == null || undoList.isEmpty()) {
+                      p.sendMessage(JsonPaster.getInstance().getConfigManager().getMessage("undo-empty"));
+                      return true;
+                  }
                   int count = 0;
                   for (String s : undoList) {
                       String[] parts = s.split(",");
@@ -202,7 +418,8 @@ jobs:
                           count++;
                       }
                   }
-                  p.sendMessage("Undone " + count + " blocks!");
+                  p.sendMessage(JsonPaster.getInstance().getConfigManager().getMessage("undo-success")
+                      .replace("%count%", String.valueOf(count)));
                   return true;
               }
           }
@@ -216,7 +433,6 @@ jobs:
           import com.google.gson.*;
           import org.bukkit.Location;
           import org.bukkit.Material;
-          import org.bukkit.World;
           import org.bukkit.command.*;
           import org.bukkit.entity.Player;
           import java.io.*;
@@ -228,19 +444,40 @@ jobs:
 
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-                  if (!(sender instanceof Player)) return true;
-                  Player p = (Player) sender;
-                  if (args.length < 1) { p.sendMessage("Usage: /copyjson <filename>"); return true; }
+                  if (!(sender instanceof Player)) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("player-only"));
+                      return true;
+                  }
+                  if (args.length < 1) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("usage").replace("%usage%", "/copyjson <filename>"));
+                      return true;
+                  }
 
-                  // Use WorldEdit selection
+                  Player p = (Player) sender;
+                  
                   try {
-                      com.sk89q.worldedit.bukkit.BukkitAdapter adapter = com.sk89q.worldedit.bukkit.BukkitAdapter.adapt(p.getWorld());
-                      com.sk89q.worldedit.regions.Region region = com.sk89q.worldedit.WorldEdit.getInstance()
-                          .getSessionManager().get(com.sk89q.worldedit.bukkit.BukkitAdapter.adapt(p))
-                          .getSelection(adapter);
+                      com.sk89q.worldedit.bukkit.WorldEditPlugin wep = 
+                          (com.sk89q.worldedit.bukkit.WorldEditPlugin) org.bukkit.Bukkit.getPluginManager().getPlugin("WorldEdit");
+                      if (wep == null) {
+                          p.sendMessage(plugin.getConfigManager().getMessage("copy-no-we"));
+                          return true;
+                      }
+                      
+                      com.sk89q.worldedit.regions.Region region;
+                      try {
+                          region = wep.getSession(p).getSelection(wep.wrapPlayer(p).getWorld());
+                      } catch (Exception e) {
+                          p.sendMessage(plugin.getConfigManager().getMessage("copy-error"));
+                          return true;
+                      }
+                      
+                      if (region == null) {
+                          p.sendMessage(plugin.getConfigManager().getMessage("copy-error"));
+                          return true;
+                      }
                       
                       JsonArray arr = new JsonArray();
-                      Location min = new Location(p.getWorld(), region.getMinimumPoint().getX(), region.getMinimumPoint().getY(), region.getMinimumPoint().getZ());
+                      Location origin = p.getLocation();
                       
                       for (int x = region.getMinimumPoint().getX(); x <= region.getMaximumPoint().getX(); x++) {
                           for (int y = region.getMinimumPoint().getY(); y <= region.getMaximumPoint().getY(); y++) {
@@ -248,9 +485,9 @@ jobs:
                                   Material mat = p.getWorld().getBlockAt(x, y, z).getType();
                                   if (mat != Material.AIR) {
                                       JsonObject obj = new JsonObject();
-                                      obj.addProperty("x", x - min.getBlockX());
-                                      obj.addProperty("y", y - min.getBlockY());
-                                      obj.addProperty("z", z - min.getBlockZ());
+                                      obj.addProperty("x", x - origin.getBlockX());
+                                      obj.addProperty("y", y - origin.getBlockY());
+                                      obj.addProperty("z", z - origin.getBlockZ());
                                       obj.addProperty("block", mat.name());
                                       arr.add(obj);
                                   }
@@ -260,22 +497,25 @@ jobs:
                       
                       String fn = args[0];
                       if (!fn.endsWith(".json")) fn += ".json";
-                      Files.write(new File(plugin.getDataFolder(), fn).toPath(), new GsonBuilder().create().toJson(arr).getBytes());
-                      p.sendMessage("Copied " + arr.size() + " blocks to " + fn);
+                      Files.write(new File(plugin.getDataFolder(), fn).toPath(), 
+                          new GsonBuilder().setPrettyPrinting().create().toJson(arr).getBytes());
+                      p.sendMessage(plugin.getConfigManager().getMessage("copy-success")
+                          .replace("%count%", String.valueOf(arr.size()))
+                          .replace("%file%", fn));
                   } catch (Exception e) {
-                      p.sendMessage("Error: Make a WorldEdit selection first!");
+                      p.sendMessage(plugin.getConfigManager().getMessage("copy-error"));
                   }
                   return true;
               }
           }
           EOF
 
-      - name: Create ListJsonCommand.java
+      - name: Create other commands
         run: |
+          # ListJsonCommand
           cat > src/main/java/com/mamad396/jsonpaster/ListJsonCommand.java << 'EOF'
           package com.mamad396.jsonpaster;
           import org.bukkit.command.*;
-          import org.bukkit.entity.Player;
           import java.io.File;
           public class ListJsonCommand implements CommandExecutor {
               private final JsonPaster plugin;
@@ -283,16 +523,20 @@ jobs:
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
                   File[] files = plugin.getDataFolder().listFiles((d, n) -> n.endsWith(".json"));
-                  if (files == null || files.length == 0) { sender.sendMessage("No JSON files found."); return true; }
-                  sender.sendMessage("JSON files (" + files.length + "):");
-                  for (File f : files) sender.sendMessage("  - " + f.getName() + " (" + (f.length()/1024) + " KB)");
+                  if (files == null || files.length == 0) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("list-empty"));
+                      return true;
+                  }
+                  sender.sendMessage(plugin.getConfigManager().getMessage("list-header").replace("%count%", String.valueOf(files.length)));
+                  for (File f : files) 
+                      sender.sendMessage(plugin.getConfigManager().getMessage("list-entry")
+                          .replace("%file%", f.getName()).replace("%size%", String.valueOf(f.length()/1024)));
                   return true;
               }
           }
           EOF
 
-      - name: Create DeleteJsonCommand.java
-        run: |
+          # DeleteJsonCommand
           cat > src/main/java/com/mamad396/jsonpaster/DeleteJsonCommand.java << 'EOF'
           package com.mamad396.jsonpaster;
           import org.bukkit.command.*;
@@ -302,19 +546,18 @@ jobs:
               public DeleteJsonCommand(JsonPaster p) { this.plugin = p; }
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-                  if (args.length < 1) { sender.sendMessage("Usage: /deletejson <filename>"); return true; }
+                  if (args.length < 1) return true;
                   String fn = args[0];
                   if (!fn.endsWith(".json")) fn += ".json";
                   File f = new File(plugin.getDataFolder(), fn);
-                  if (f.delete()) sender.sendMessage("Deleted: " + fn);
-                  else sender.sendMessage("File not found: " + fn);
+                  if (f.delete()) sender.sendMessage(plugin.getConfigManager().getMessage("delete-success").replace("%file%", fn));
+                  else sender.sendMessage(plugin.getConfigManager().getMessage("delete-error").replace("%file%", fn));
                   return true;
               }
           }
           EOF
 
-      - name: Create InfoJsonCommand.java
-        run: |
+          # InfoJsonCommand
           cat > src/main/java/com/mamad396/jsonpaster/InfoJsonCommand.java << 'EOF'
           package com.mamad396.jsonpaster;
           import org.bukkit.command.*;
@@ -327,26 +570,25 @@ jobs:
               public InfoJsonCommand(JsonPaster p) { this.plugin = p; }
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-                  if (args.length < 1) { sender.sendMessage("Usage: /infojson <filename>"); return true; }
+                  if (args.length < 1) return true;
                   String fn = args[0];
                   if (!fn.endsWith(".json")) fn += ".json";
                   File f = new File(plugin.getDataFolder(), fn);
-                  if (!f.exists()) { sender.sendMessage("File not found."); return true; }
+                  if (!f.exists()) { sender.sendMessage(plugin.getConfigManager().getMessage("paste-notfound").replace("%file%", fn)); return true; }
                   try {
                       String c = new String(Files.readAllBytes(f.toPath()));
                       int count = c.split("\\},\\{").length;
-                      sender.sendMessage("File: " + fn);
-                      sender.sendMessage("Blocks: ~" + count);
-                      sender.sendMessage("Size: " + (f.length()/1024) + " KB");
-                      sender.sendMessage("Modified: " + new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date(f.lastModified())));
-                  } catch (Exception e) { sender.sendMessage("Error reading file."); }
+                      sender.sendMessage(plugin.getConfigManager().getMessage("info-header").replace("%file%", fn));
+                      sender.sendMessage(plugin.getConfigManager().getMessage("info-blocks").replace("%blocks%", "~"+count));
+                      sender.sendMessage(plugin.getConfigManager().getMessage("info-size").replace("%size%", String.valueOf(f.length()/1024)));
+                      sender.sendMessage(plugin.getConfigManager().getMessage("info-date").replace("%date%", new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date(f.lastModified()))));
+                  } catch (Exception e) { sender.sendMessage("Error!"); }
                   return true;
               }
           }
           EOF
 
-      - name: Create RotateJsonCommand.java
-        run: |
+          # RotateJsonCommand
           cat > src/main/java/com/mamad396/jsonpaster/RotateJsonCommand.java << 'EOF'
           package com.mamad396.jsonpaster;
           import com.google.gson.*;
@@ -358,13 +600,18 @@ jobs:
               public RotateJsonCommand(JsonPaster p) { this.plugin = p; }
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-                  if (args.length < 2) { sender.sendMessage("Usage: /rotatejson <filename> <90/180/270>"); return true; }
+                  if (args.length < 2) return true;
                   String fn = args[0];
                   if (!fn.endsWith(".json")) fn += ".json";
                   File f = new File(plugin.getDataFolder(), fn);
-                  if (!f.exists()) { sender.sendMessage("File not found."); return true; }
-                  int angle = Integer.parseInt(args[1]);
-                  if (angle != 90 && angle != 180 && angle != 270) { sender.sendMessage("Angle must be 90, 180, or 270"); return true; }
+                  if (!f.exists()) { sender.sendMessage(plugin.getConfigManager().getMessage("paste-notfound").replace("%file%", fn)); return true; }
+                  int angle;
+                  try { angle = Integer.parseInt(args[1]); } catch (Exception e) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("rotate-error")); return true;
+                  }
+                  if (angle != 90 && angle != 180 && angle != 270) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("rotate-error")); return true;
+                  }
                   try {
                       String content = new String(Files.readAllBytes(f.toPath()));
                       JsonArray arr = JsonParser.parseString(content).getAsJsonArray();
@@ -377,15 +624,14 @@ jobs:
                           else { obj.addProperty("x", z); obj.addProperty("z", -x); }
                       }
                       Files.write(f.toPath(), new GsonBuilder().create().toJson(arr).getBytes());
-                      sender.sendMessage("Rotated " + fn + " by " + angle + " degrees");
+                      sender.sendMessage(plugin.getConfigManager().getMessage("rotate-success").replace("%file%", fn).replace("%angle%", String.valueOf(angle)));
                   } catch (Exception e) { sender.sendMessage("Error: " + e.getMessage()); }
                   return true;
               }
           }
           EOF
 
-      - name: Create MirrorJsonCommand.java
-        run: |
+          # MirrorJsonCommand
           cat > src/main/java/com/mamad396/jsonpaster/MirrorJsonCommand.java << 'EOF'
           package com.mamad396.jsonpaster;
           import com.google.gson.*;
@@ -397,13 +643,15 @@ jobs:
               public MirrorJsonCommand(JsonPaster p) { this.plugin = p; }
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-                  if (args.length < 2) { sender.sendMessage("Usage: /mirrorjson <filename> <x/z>"); return true; }
+                  if (args.length < 2) return true;
                   String fn = args[0];
                   if (!fn.endsWith(".json")) fn += ".json";
                   File f = new File(plugin.getDataFolder(), fn);
-                  if (!f.exists()) { sender.sendMessage("File not found."); return true; }
+                  if (!f.exists()) { sender.sendMessage(plugin.getConfigManager().getMessage("paste-notfound").replace("%file%", fn)); return true; }
                   String axis = args[1].toLowerCase();
-                  if (!axis.equals("x") && !axis.equals("z")) { sender.sendMessage("Axis must be x or z"); return true; }
+                  if (!axis.equals("x") && !axis.equals("z")) {
+                      sender.sendMessage(plugin.getConfigManager().getMessage("mirror-error")); return true;
+                  }
                   try {
                       String content = new String(Files.readAllBytes(f.toPath()));
                       JsonArray arr = JsonParser.parseString(content).getAsJsonArray();
@@ -413,15 +661,14 @@ jobs:
                           else obj.addProperty("z", -obj.get("z").getAsInt());
                       }
                       Files.write(f.toPath(), new GsonBuilder().create().toJson(arr).getBytes());
-                      sender.sendMessage("Mirrored " + fn + " on " + axis + " axis");
+                      sender.sendMessage(plugin.getConfigManager().getMessage("mirror-success").replace("%file%", fn).replace("%axis%", axis));
                   } catch (Exception e) { sender.sendMessage("Error: " + e.getMessage()); }
                   return true;
               }
           }
           EOF
 
-      - name: Create ReplaceJsonCommand.java
-        run: |
+          # ReplaceJsonCommand
           cat > src/main/java/com/mamad396/jsonpaster/ReplaceJsonCommand.java << 'EOF'
           package com.mamad396.jsonpaster;
           import com.google.gson.*;
@@ -433,11 +680,11 @@ jobs:
               public ReplaceJsonCommand(JsonPaster p) { this.plugin = p; }
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-                  if (args.length < 3) { sender.sendMessage("Usage: /replacejson <filename> <from_block> <to_block>"); return true; }
+                  if (args.length < 3) return true;
                   String fn = args[0];
                   if (!fn.endsWith(".json")) fn += ".json";
                   File f = new File(plugin.getDataFolder(), fn);
-                  if (!f.exists()) { sender.sendMessage("File not found."); return true; }
+                  if (!f.exists()) { sender.sendMessage(plugin.getConfigManager().getMessage("paste-notfound").replace("%file%", fn)); return true; }
                   String from = args[1].toUpperCase();
                   String to = args[2].toUpperCase();
                   try {
@@ -447,20 +694,18 @@ jobs:
                       for (JsonElement e : arr) {
                           JsonObject obj = e.getAsJsonObject();
                           if (obj.get("block").getAsString().equalsIgnoreCase(from)) {
-                              obj.addProperty("block", to);
-                              count++;
+                              obj.addProperty("block", to); count++;
                           }
                       }
                       Files.write(f.toPath(), new GsonBuilder().create().toJson(arr).getBytes());
-                      sender.sendMessage("Replaced " + count + " blocks from " + from + " to " + to + " in " + fn);
+                      sender.sendMessage(plugin.getConfigManager().getMessage("replace-success").replace("%count%", String.valueOf(count)).replace("%from%", from).replace("%to%", to));
                   } catch (Exception e) { sender.sendMessage("Error: " + e.getMessage()); }
                   return true;
               }
           }
           EOF
 
-      - name: Create PreviewJsonCommand.java
-        run: |
+          # PreviewJsonCommand
           cat > src/main/java/com/mamad396/jsonpaster/PreviewJsonCommand.java << 'EOF'
           package com.mamad396.jsonpaster;
           import org.bukkit.*;
@@ -475,16 +720,15 @@ jobs:
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
                   if (!(sender instanceof Player)) return true;
                   Player p = (Player) sender;
-                  if (args.length < 1) { p.sendMessage("Usage: /previewjson <filename>"); return true; }
+                  if (args.length < 1) return true;
                   String fn = args[0];
                   if (!fn.endsWith(".json")) fn += ".json";
                   File f = new File(plugin.getDataFolder(), fn);
-                  if (!f.exists()) { p.sendMessage("File not found."); return true; }
+                  if (!f.exists()) { p.sendMessage(plugin.getConfigManager().getMessage("paste-notfound").replace("%file%", fn)); return true; }
                   try {
                       String content = new String(Files.readAllBytes(f.toPath())).trim();
                       if (content.startsWith("[")) content = content.substring(1);
                       if (content.endsWith("]")) content = content.substring(0, content.length()-1);
-                      Location loc = p.getLocation();
                       String[] blocks = content.split("\\},\\{");
                       int minX=0,minY=0,minZ=0,maxX=0,maxY=0,maxZ=0,count=0;
                       for (String bs : blocks) {
@@ -504,13 +748,9 @@ jobs:
                           else { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); minZ=Math.min(minZ,z); maxZ=Math.max(maxZ,z); }
                           count++;
                       }
-                      p.sendMessage("Preview of " + fn + " (" + count + " blocks):");
-                      p.sendMessage("  Size: " + (maxX-minX+1) + "x" + (maxY-minY+1) + "x" + (maxZ-minZ+1));
-                      p.sendMessage("  Will paste at your location");
-                      // Show particles at corners
-                      Location loc2 = loc.clone();
-                      for (int x : new int[]{minX,maxX}) for (int z : new int[]{minZ,maxZ})
-                          p.spawnParticle(Particle.FLAME, loc2.add(x,0,z), 1);
+                      String size = (maxX-minX+1) + "x" + (maxY-minY+1) + "x" + (maxZ-minZ+1);
+                      p.sendMessage(plugin.getConfigManager().getMessage("preview-header").replace("%file%", fn).replace("%count%", String.valueOf(count)));
+                      p.sendMessage(plugin.getConfigManager().getMessage("preview-size").replace("%size%", size));
                   } catch (Exception e) { p.sendMessage("Error: " + e.getMessage()); }
                   return true;
               }
@@ -527,9 +767,9 @@ jobs:
               <modelVersion>4.0.0</modelVersion>
               <groupId>com.mamad396</groupId>
               <artifactId>JsonPaster</artifactId>
-              <version>3.0</version>
+              <version>3.1</version>
               <packaging>jar</packaging>
-              <properties><java.version>17</java.version></properties>
+              <properties><java.version>17</java.version><project.build.sourceEncoding>UTF-8</project.build.sourceEncoding></properties>
               <repositories>
                   <repository><id>papermc</id><url>https://repo.papermc.io/repository/maven-public/</url></repository>
                   <repository><id>enginehub</id><url>https://maven.enginehub.org/repo/</url></repository>
@@ -539,7 +779,11 @@ jobs:
                   <dependency><groupId>com.sk89q.worldedit</groupId><artifactId>worldedit-bukkit</artifactId><version>7.2.15</version><scope>provided</scope></dependency>
                   <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version></dependency>
               </dependencies>
-              <build><plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.11.0</version><configuration><source>17</source><target>17</target></configuration></plugin></plugins></build>
+              <build>
+                  <plugins>
+                      <plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.11.0</version><configuration><source>17</source><target>17</target></configuration></plugin>
+                  </plugins>
+              </build>
           </project>
           EOF
 
@@ -547,18 +791,18 @@ jobs:
         run: mvn clean package -B
 
       - name: Copy JAR to releases
-        run: cp target/JsonPaster-3.0.jar releases/
+        run: cp target/JsonPaster-3.1.jar releases/
 
       - name: Commit and push JAR
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add releases/JsonPaster-3.0.jar
-          git commit -m "JsonPaster Pro v3.0" || echo "No changes"
+          git add releases/JsonPaster-3.1.jar
+          git commit -m "JsonPaster Pro v3.1 - Fixed" || echo "No changes"
           git push
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JsonPaster-Pro-v3
-          path: target/JsonPaster-3.0.jar
+          name: JsonPaster-Pro-v3.1
+          path: target/JsonPaster-3.1.jar
