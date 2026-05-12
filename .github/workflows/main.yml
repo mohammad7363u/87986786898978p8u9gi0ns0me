@@ -3,7 +3,11 @@ name: Build JsonPaster Plugin
 on:
   push:
     branches: [ main, master ]
-  workflow_dispatch:  # این دکمه دستی رو بهت میده
+  workflow_dispatch:
+
+# این permission رو باید بدیم تا بتونه commit کنه
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -23,6 +27,7 @@ jobs:
         run: |
           mkdir -p src/main/java/com/mamad396/jsonpaster
           mkdir -p src/main/resources
+          mkdir -p releases
 
       - name: Create plugin.yml
         run: |
@@ -189,7 +194,18 @@ jobs:
       - name: Build with Maven
         run: mvn clean package -B
 
-      - name: Upload JAR artifact
+      - name: Copy JAR to releases folder
+        run: cp target/JsonPaster-1.0.jar releases/
+
+      - name: Commit and push JAR file
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add releases/JsonPaster-1.0.jar
+          git commit -m "Update plugin JAR" || echo "No changes to commit"
+          git push
+
+      - name: Upload JAR as Artifact
         uses: actions/upload-artifact@v4
         with:
           name: JsonPaster
