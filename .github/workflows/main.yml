@@ -1,0 +1,196 @@
+name: Build JsonPaster Plugin
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # این دکمه دستی رو بهت میده
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Create project structure
+        run: |
+          mkdir -p src/main/java/com/mamad396/jsonpaster
+          mkdir -p src/main/resources
+
+      - name: Create plugin.yml
+        run: |
+          cat > src/main/resources/plugin.yml << 'EOF'
+          name: JsonPaster
+          version: 1.0
+          main: com.mamad396.jsonpaster.JsonPaster
+          api-version: '1.20'
+          author: mamad396
+
+          commands:
+            pastejson:
+              description: Paste blocks from JSON file
+              usage: /pastejson <filename>
+          EOF
+
+      - name: Create JsonPaster.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/JsonPaster.java << 'EOF'
+          package com.mamad396.jsonpaster;
+
+          import org.bukkit.plugin.java.JavaPlugin;
+
+          public class JsonPaster extends JavaPlugin {
+              @Override
+              public void onEnable() {
+                  getLogger().info("JsonPaster enabled!");
+                  if (!getDataFolder().exists()) getDataFolder().mkdirs();
+                  getCommand("pastejson").setExecutor(new PasteJsonCommand(this));
+              }
+          }
+          EOF
+
+      - name: Create PasteJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/PasteJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+
+          import org.bukkit.Location;
+          import org.bukkit.Material;
+          import org.bukkit.World;
+          import org.bukkit.command.Command;
+          import org.bukkit.command.CommandExecutor;
+          import org.bukkit.command.CommandSender;
+          import org.bukkit.entity.Player;
+          import java.io.*;
+
+          public class PasteJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+
+              public PasteJsonCommand(JsonPaster p) {
+                  this.plugin = p;
+              }
+
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (!(sender instanceof Player)) return true;
+                  if (args.length < 1) return true;
+
+                  Player p = (Player) sender;
+                  String fn = args[0];
+                  if (!fn.endsWith(".json")) fn += ".json";
+
+                  File f = new File(plugin.getDataFolder(), fn);
+                  if (!f.exists()) {
+                      p.sendMessage("File not found in " + plugin.getDataFolder().getAbsolutePath());
+                      return true;
+                  }
+
+                  try {
+                      BufferedReader r = new BufferedReader(new FileReader(f));
+                      StringBuilder s = new StringBuilder();
+                      String l;
+                      while ((l = r.readLine()) != null) s.append(l);
+                      r.close();
+
+                      String c = s.toString().trim();
+                      c = c.replace("[", "").replace("]", "");
+                      String[] blocks = c.split("\\},\\{");
+                      Location loc = p.getLocation();
+                      World w = p.getWorld();
+                      int pasted = 0;
+
+                      for (String bs : blocks) {
+                          bs = bs.replace("{", "").replace("}", "");
+                          String[] parts = bs.split(",");
+                          int x = 0, y = 0, z = 0;
+                          String mat = "STONE";
+                          for (String pt : parts) {
+                              String[] kv = pt.split(":");
+                              String k = kv[0].trim().replace("\"", "");
+                              String v = kv[1].trim().replace("\"", "");
+                              switch (k) {
+                                  case "x": x = Integer.parseInt(v); break;
+                                  case "y": y = Integer.parseInt(v); break;
+                                  case "z": z = Integer.parseInt(v); break;
+                                  case "block": mat = v.toUpperCase();
+                              }
+                          }
+                          Material m = Material.getMaterial(mat);
+                          if (m != null) {
+                              w.getBlockAt(loc.getBlockX() + x, loc.getBlockY() + y, loc.getBlockZ() + z).setType(m);
+                              pasted++;
+                          }
+                      }
+                      p.sendMessage("Pasted " + pasted + " blocks!");
+                  } catch (Exception e) {
+                      p.sendMessage("Error: " + e.getMessage());
+                  }
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create pom.xml
+        run: |
+          cat > pom.xml << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <project xmlns="http://maven.apache.org/POM/4.0.0"
+                   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+              <modelVersion>4.0.0</modelVersion>
+              <groupId>com.mamad396</groupId>
+              <artifactId>JsonPaster</artifactId>
+              <version>1.0</version>
+              <packaging>jar</packaging>
+              
+              <properties>
+                  <java.version>17</java.version>
+              </properties>
+              
+              <repositories>
+                  <repository>
+                      <id>papermc</id>
+                      <url>https://repo.papermc.io/repository/maven-public/</url>
+                  </repository>
+              </repositories>
+              
+              <dependencies>
+                  <dependency>
+                      <groupId>io.papermc.paper</groupId>
+                      <artifactId>paper-api</artifactId>
+                      <version>1.20.4-R0.1-SNAPSHOT</version>
+                      <scope>provided</scope>
+                  </dependency>
+              </dependencies>
+              
+              <build>
+                  <plugins>
+                      <plugin>
+                          <groupId>org.apache.maven.plugins</groupId>
+                          <artifactId>maven-compiler-plugin</artifactId>
+                          <version>3.11.0</version>
+                          <configuration>
+                              <source>${java.version}</source>
+                              <target>${java.version}</target>
+                          </configuration>
+                      </plugin>
+                  </plugins>
+              </build>
+          </project>
+          EOF
+
+      - name: Build with Maven
+        run: mvn clean package -B
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: JsonPaster
+          path: target/JsonPaster-1.0.jar
