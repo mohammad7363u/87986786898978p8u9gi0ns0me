@@ -1,11 +1,10 @@
-name: Build JsonPaster Plugin
+name: Build JsonPaster Pro
 
 on:
   push:
     branches: [ main, master ]
   workflow_dispatch:
 
-# این permission رو باید بدیم تا بتونه commit کنه
 permissions:
   contents: write
 
@@ -33,15 +32,42 @@ jobs:
         run: |
           cat > src/main/resources/plugin.yml << 'EOF'
           name: JsonPaster
-          version: 1.0
+          version: 3.0
           main: com.mamad396.jsonpaster.JsonPaster
           api-version: '1.20'
           author: mamad396
 
           commands:
             pastejson:
-              description: Paste blocks from JSON file
+              description: Paste a JSON file
               usage: /pastejson <filename>
+            copyjson:
+              description: Copy selection to JSON file
+              usage: /copyjson <filename>
+            listjson:
+              description: List all JSON files
+              usage: /listjson
+            deletejson:
+              description: Delete a JSON file
+              usage: /deletejson <filename>
+            infojson:
+              description: Get info about a JSON file
+              usage: /infojson <filename>
+            rotatejson:
+              description: Rotate a JSON file
+              usage: /rotatejson <filename> <90/180/270>
+            mirrorjson:
+              description: Mirror a JSON file
+              usage: /mirrorjson <filename> <x/z>
+            replacejson:
+              description: Replace blocks in a JSON file
+              usage: /replacejson <filename> <from_block> <to_block>
+            previewjson:
+              description: Preview a JSON file before pasting
+              usage: /previewjson <filename>
+            undopaste:
+              description: Undo last paste
+              usage: /undopaste
           EOF
 
       - name: Create JsonPaster.java
@@ -50,13 +76,23 @@ jobs:
           package com.mamad396.jsonpaster;
 
           import org.bukkit.plugin.java.JavaPlugin;
+          import java.io.File;
 
           public class JsonPaster extends JavaPlugin {
               @Override
               public void onEnable() {
-                  getLogger().info("JsonPaster enabled!");
                   if (!getDataFolder().exists()) getDataFolder().mkdirs();
                   getCommand("pastejson").setExecutor(new PasteJsonCommand(this));
+                  getCommand("copyjson").setExecutor(new CopyJsonCommand(this));
+                  getCommand("listjson").setExecutor(new ListJsonCommand(this));
+                  getCommand("deletejson").setExecutor(new DeleteJsonCommand(this));
+                  getCommand("infojson").setExecutor(new InfoJsonCommand(this));
+                  getCommand("rotatejson").setExecutor(new RotateJsonCommand(this));
+                  getCommand("mirrorjson").setExecutor(new MirrorJsonCommand(this));
+                  getCommand("replacejson").setExecutor(new ReplaceJsonCommand(this));
+                  getCommand("previewjson").setExecutor(new PreviewJsonCommand(this));
+                  getCommand("undopaste").setExecutor(new UndoPasteCommand(this));
+                  getLogger().info("JsonPaster Pro v3.0 enabled!");
               }
           }
           EOF
@@ -66,77 +102,416 @@ jobs:
           cat > src/main/java/com/mamad396/jsonpaster/PasteJsonCommand.java << 'EOF'
           package com.mamad396.jsonpaster;
 
-          import org.bukkit.Location;
-          import org.bukkit.Material;
-          import org.bukkit.World;
-          import org.bukkit.command.Command;
-          import org.bukkit.command.CommandExecutor;
-          import org.bukkit.command.CommandSender;
+          import org.bukkit.*;
+          import org.bukkit.block.Block;
+          import org.bukkit.block.data.BlockData;
+          import org.bukkit.command.*;
           import org.bukkit.entity.Player;
           import java.io.*;
+          import java.nio.file.*;
+          import java.util.*;
 
           public class PasteJsonCommand implements CommandExecutor {
               private final JsonPaster plugin;
+              public static Map<UUID, List<String>> undoMap = new HashMap<>();
 
-              public PasteJsonCommand(JsonPaster p) {
-                  this.plugin = p;
-              }
+              public PasteJsonCommand(JsonPaster p) { this.plugin = p; }
 
               @Override
               public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
                   if (!(sender instanceof Player)) return true;
-                  if (args.length < 1) return true;
-
                   Player p = (Player) sender;
+                  if (args.length < 1) { p.sendMessage("Usage: /pastejson <filename>"); return true; }
+
                   String fn = args[0];
                   if (!fn.endsWith(".json")) fn += ".json";
-
                   File f = new File(plugin.getDataFolder(), fn);
-                  if (!f.exists()) {
-                      p.sendMessage("File not found in " + plugin.getDataFolder().getAbsolutePath());
-                      return true;
-                  }
+                  if (!f.exists()) { p.sendMessage("File not found: " + fn); return true; }
 
                   try {
-                      BufferedReader r = new BufferedReader(new FileReader(f));
-                      StringBuilder s = new StringBuilder();
-                      String l;
-                      while ((l = r.readLine()) != null) s.append(l);
-                      r.close();
+                      String content = new String(Files.readAllBytes(f.toPath())).trim();
+                      if (content.startsWith("[")) content = content.substring(1);
+                      if (content.endsWith("]")) content = content.substring(0, content.length()-1);
 
-                      String c = s.toString().trim();
-                      c = c.replace("[", "").replace("]", "");
-                      String[] blocks = c.split("\\},\\{");
                       Location loc = p.getLocation();
                       World w = p.getWorld();
                       int pasted = 0;
+                      List<String> undoList = new ArrayList<>();
 
+                      String[] blocks = content.split("\\},\\{");
                       for (String bs : blocks) {
-                          bs = bs.replace("{", "").replace("}", "");
-                          String[] parts = bs.split(",");
+                          bs = bs.replace("{", "").replace("}", "").trim();
+                          if (bs.isEmpty()) continue;
                           int x = 0, y = 0, z = 0;
                           String mat = "STONE";
-                          for (String pt : parts) {
-                              String[] kv = pt.split(":");
-                              String k = kv[0].trim().replace("\"", "");
-                              String v = kv[1].trim().replace("\"", "");
-                              switch (k) {
-                                  case "x": x = Integer.parseInt(v); break;
-                                  case "y": y = Integer.parseInt(v); break;
-                                  case "z": z = Integer.parseInt(v); break;
-                                  case "block": mat = v.toUpperCase();
+                          String[] parts = bs.split(",");
+                          for (String part : parts) {
+                              int cp = part.indexOf(":");
+                              if (cp < 0) continue;
+                              String key = part.substring(0, cp).trim().replace("\"", "");
+                              String val = part.substring(cp+1).trim().replace("\"", "");
+                              switch (key) {
+                                  case "x": x = Integer.parseInt(val); break;
+                                  case "y": y = Integer.parseInt(val); break;
+                                  case "z": z = Integer.parseInt(val); break;
+                                  case "block": mat = val; break;
                               }
                           }
-                          Material m = Material.getMaterial(mat);
-                          if (m != null) {
-                              w.getBlockAt(loc.getBlockX() + x, loc.getBlockY() + y, loc.getBlockZ() + z).setType(m);
+                          Material m = Material.getMaterial(mat.toUpperCase());
+                          if (m != null && m.isBlock()) {
+                              Block block = w.getBlockAt(loc.getBlockX()+x, loc.getBlockY()+y, loc.getBlockZ()+z);
+                              undoList.add(block.getWorld().getName() + "," + block.getX() + "," + block.getY() + "," + block.getZ() + "," + block.getType().name());
+                              block.setType(m);
                               pasted++;
                           }
                       }
-                      p.sendMessage("Pasted " + pasted + " blocks!");
+                      undoMap.put(p.getUniqueId(), undoList);
+                      p.sendMessage("Pasted " + pasted + " blocks! Use /undopaste to undo.");
                   } catch (Exception e) {
                       p.sendMessage("Error: " + e.getMessage());
                   }
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create UndoPasteCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/UndoPasteCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+
+          import org.bukkit.*;
+          import org.bukkit.command.*;
+          import org.bukkit.entity.Player;
+          import java.util.*;
+
+          public class UndoPasteCommand implements CommandExecutor {
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (!(sender instanceof Player)) return true;
+                  Player p = (Player) sender;
+                  List<String> undoList = PasteJsonCommand.undoMap.remove(p.getUniqueId());
+                  if (undoList == null || undoList.isEmpty()) { p.sendMessage("Nothing to undo!"); return true; }
+                  int count = 0;
+                  for (String s : undoList) {
+                      String[] parts = s.split(",");
+                      World w = Bukkit.getWorld(parts[0]);
+                      if (w != null) {
+                          w.getBlockAt(Integer.parseInt(parts[1]), Integer.parseInt(parts[2]), Integer.parseInt(parts[3]))
+                           .setType(Material.getMaterial(parts[4]));
+                          count++;
+                      }
+                  }
+                  p.sendMessage("Undone " + count + " blocks!");
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create CopyJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/CopyJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+
+          import com.google.gson.*;
+          import org.bukkit.Location;
+          import org.bukkit.Material;
+          import org.bukkit.World;
+          import org.bukkit.command.*;
+          import org.bukkit.entity.Player;
+          import java.io.*;
+          import java.nio.file.*;
+
+          public class CopyJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              public CopyJsonCommand(JsonPaster p) { this.plugin = p; }
+
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (!(sender instanceof Player)) return true;
+                  Player p = (Player) sender;
+                  if (args.length < 1) { p.sendMessage("Usage: /copyjson <filename>"); return true; }
+
+                  // Use WorldEdit selection
+                  try {
+                      com.sk89q.worldedit.bukkit.BukkitAdapter adapter = com.sk89q.worldedit.bukkit.BukkitAdapter.adapt(p.getWorld());
+                      com.sk89q.worldedit.regions.Region region = com.sk89q.worldedit.WorldEdit.getInstance()
+                          .getSessionManager().get(com.sk89q.worldedit.bukkit.BukkitAdapter.adapt(p))
+                          .getSelection(adapter);
+                      
+                      JsonArray arr = new JsonArray();
+                      Location min = new Location(p.getWorld(), region.getMinimumPoint().getX(), region.getMinimumPoint().getY(), region.getMinimumPoint().getZ());
+                      
+                      for (int x = region.getMinimumPoint().getX(); x <= region.getMaximumPoint().getX(); x++) {
+                          for (int y = region.getMinimumPoint().getY(); y <= region.getMaximumPoint().getY(); y++) {
+                              for (int z = region.getMinimumPoint().getZ(); z <= region.getMaximumPoint().getZ(); z++) {
+                                  Material mat = p.getWorld().getBlockAt(x, y, z).getType();
+                                  if (mat != Material.AIR) {
+                                      JsonObject obj = new JsonObject();
+                                      obj.addProperty("x", x - min.getBlockX());
+                                      obj.addProperty("y", y - min.getBlockY());
+                                      obj.addProperty("z", z - min.getBlockZ());
+                                      obj.addProperty("block", mat.name());
+                                      arr.add(obj);
+                                  }
+                              }
+                          }
+                      }
+                      
+                      String fn = args[0];
+                      if (!fn.endsWith(".json")) fn += ".json";
+                      Files.write(new File(plugin.getDataFolder(), fn).toPath(), new GsonBuilder().create().toJson(arr).getBytes());
+                      p.sendMessage("Copied " + arr.size() + " blocks to " + fn);
+                  } catch (Exception e) {
+                      p.sendMessage("Error: Make a WorldEdit selection first!");
+                  }
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create ListJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/ListJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+          import org.bukkit.command.*;
+          import org.bukkit.entity.Player;
+          import java.io.File;
+          public class ListJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              public ListJsonCommand(JsonPaster p) { this.plugin = p; }
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  File[] files = plugin.getDataFolder().listFiles((d, n) -> n.endsWith(".json"));
+                  if (files == null || files.length == 0) { sender.sendMessage("No JSON files found."); return true; }
+                  sender.sendMessage("JSON files (" + files.length + "):");
+                  for (File f : files) sender.sendMessage("  - " + f.getName() + " (" + (f.length()/1024) + " KB)");
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create DeleteJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/DeleteJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+          import org.bukkit.command.*;
+          import java.io.File;
+          public class DeleteJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              public DeleteJsonCommand(JsonPaster p) { this.plugin = p; }
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (args.length < 1) { sender.sendMessage("Usage: /deletejson <filename>"); return true; }
+                  String fn = args[0];
+                  if (!fn.endsWith(".json")) fn += ".json";
+                  File f = new File(plugin.getDataFolder(), fn);
+                  if (f.delete()) sender.sendMessage("Deleted: " + fn);
+                  else sender.sendMessage("File not found: " + fn);
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create InfoJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/InfoJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+          import org.bukkit.command.*;
+          import java.io.File;
+          import java.nio.file.*;
+          import java.text.SimpleDateFormat;
+          import java.util.Date;
+          public class InfoJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              public InfoJsonCommand(JsonPaster p) { this.plugin = p; }
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (args.length < 1) { sender.sendMessage("Usage: /infojson <filename>"); return true; }
+                  String fn = args[0];
+                  if (!fn.endsWith(".json")) fn += ".json";
+                  File f = new File(plugin.getDataFolder(), fn);
+                  if (!f.exists()) { sender.sendMessage("File not found."); return true; }
+                  try {
+                      String c = new String(Files.readAllBytes(f.toPath()));
+                      int count = c.split("\\},\\{").length;
+                      sender.sendMessage("File: " + fn);
+                      sender.sendMessage("Blocks: ~" + count);
+                      sender.sendMessage("Size: " + (f.length()/1024) + " KB");
+                      sender.sendMessage("Modified: " + new SimpleDateFormat("yyyy-MM-dd HH:mm").format(new Date(f.lastModified())));
+                  } catch (Exception e) { sender.sendMessage("Error reading file."); }
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create RotateJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/RotateJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+          import com.google.gson.*;
+          import org.bukkit.command.*;
+          import java.io.File;
+          import java.nio.file.*;
+          public class RotateJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              public RotateJsonCommand(JsonPaster p) { this.plugin = p; }
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (args.length < 2) { sender.sendMessage("Usage: /rotatejson <filename> <90/180/270>"); return true; }
+                  String fn = args[0];
+                  if (!fn.endsWith(".json")) fn += ".json";
+                  File f = new File(plugin.getDataFolder(), fn);
+                  if (!f.exists()) { sender.sendMessage("File not found."); return true; }
+                  int angle = Integer.parseInt(args[1]);
+                  if (angle != 90 && angle != 180 && angle != 270) { sender.sendMessage("Angle must be 90, 180, or 270"); return true; }
+                  try {
+                      String content = new String(Files.readAllBytes(f.toPath()));
+                      JsonArray arr = JsonParser.parseString(content).getAsJsonArray();
+                      for (JsonElement e : arr) {
+                          JsonObject obj = e.getAsJsonObject();
+                          int x = obj.get("x").getAsInt();
+                          int z = obj.get("z").getAsInt();
+                          if (angle == 90) { obj.addProperty("x", -z); obj.addProperty("z", x); }
+                          else if (angle == 180) { obj.addProperty("x", -x); obj.addProperty("z", -z); }
+                          else { obj.addProperty("x", z); obj.addProperty("z", -x); }
+                      }
+                      Files.write(f.toPath(), new GsonBuilder().create().toJson(arr).getBytes());
+                      sender.sendMessage("Rotated " + fn + " by " + angle + " degrees");
+                  } catch (Exception e) { sender.sendMessage("Error: " + e.getMessage()); }
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create MirrorJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/MirrorJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+          import com.google.gson.*;
+          import org.bukkit.command.*;
+          import java.io.File;
+          import java.nio.file.*;
+          public class MirrorJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              public MirrorJsonCommand(JsonPaster p) { this.plugin = p; }
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (args.length < 2) { sender.sendMessage("Usage: /mirrorjson <filename> <x/z>"); return true; }
+                  String fn = args[0];
+                  if (!fn.endsWith(".json")) fn += ".json";
+                  File f = new File(plugin.getDataFolder(), fn);
+                  if (!f.exists()) { sender.sendMessage("File not found."); return true; }
+                  String axis = args[1].toLowerCase();
+                  if (!axis.equals("x") && !axis.equals("z")) { sender.sendMessage("Axis must be x or z"); return true; }
+                  try {
+                      String content = new String(Files.readAllBytes(f.toPath()));
+                      JsonArray arr = JsonParser.parseString(content).getAsJsonArray();
+                      for (JsonElement e : arr) {
+                          JsonObject obj = e.getAsJsonObject();
+                          if (axis.equals("x")) obj.addProperty("x", -obj.get("x").getAsInt());
+                          else obj.addProperty("z", -obj.get("z").getAsInt());
+                      }
+                      Files.write(f.toPath(), new GsonBuilder().create().toJson(arr).getBytes());
+                      sender.sendMessage("Mirrored " + fn + " on " + axis + " axis");
+                  } catch (Exception e) { sender.sendMessage("Error: " + e.getMessage()); }
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create ReplaceJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/ReplaceJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+          import com.google.gson.*;
+          import org.bukkit.command.*;
+          import java.io.File;
+          import java.nio.file.*;
+          public class ReplaceJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              public ReplaceJsonCommand(JsonPaster p) { this.plugin = p; }
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (args.length < 3) { sender.sendMessage("Usage: /replacejson <filename> <from_block> <to_block>"); return true; }
+                  String fn = args[0];
+                  if (!fn.endsWith(".json")) fn += ".json";
+                  File f = new File(plugin.getDataFolder(), fn);
+                  if (!f.exists()) { sender.sendMessage("File not found."); return true; }
+                  String from = args[1].toUpperCase();
+                  String to = args[2].toUpperCase();
+                  try {
+                      String content = new String(Files.readAllBytes(f.toPath()));
+                      JsonArray arr = JsonParser.parseString(content).getAsJsonArray();
+                      int count = 0;
+                      for (JsonElement e : arr) {
+                          JsonObject obj = e.getAsJsonObject();
+                          if (obj.get("block").getAsString().equalsIgnoreCase(from)) {
+                              obj.addProperty("block", to);
+                              count++;
+                          }
+                      }
+                      Files.write(f.toPath(), new GsonBuilder().create().toJson(arr).getBytes());
+                      sender.sendMessage("Replaced " + count + " blocks from " + from + " to " + to + " in " + fn);
+                  } catch (Exception e) { sender.sendMessage("Error: " + e.getMessage()); }
+                  return true;
+              }
+          }
+          EOF
+
+      - name: Create PreviewJsonCommand.java
+        run: |
+          cat > src/main/java/com/mamad396/jsonpaster/PreviewJsonCommand.java << 'EOF'
+          package com.mamad396.jsonpaster;
+          import org.bukkit.*;
+          import org.bukkit.command.*;
+          import org.bukkit.entity.Player;
+          import java.io.File;
+          import java.nio.file.*;
+          public class PreviewJsonCommand implements CommandExecutor {
+              private final JsonPaster plugin;
+              public PreviewJsonCommand(JsonPaster p) { this.plugin = p; }
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (!(sender instanceof Player)) return true;
+                  Player p = (Player) sender;
+                  if (args.length < 1) { p.sendMessage("Usage: /previewjson <filename>"); return true; }
+                  String fn = args[0];
+                  if (!fn.endsWith(".json")) fn += ".json";
+                  File f = new File(plugin.getDataFolder(), fn);
+                  if (!f.exists()) { p.sendMessage("File not found."); return true; }
+                  try {
+                      String content = new String(Files.readAllBytes(f.toPath())).trim();
+                      if (content.startsWith("[")) content = content.substring(1);
+                      if (content.endsWith("]")) content = content.substring(0, content.length()-1);
+                      Location loc = p.getLocation();
+                      String[] blocks = content.split("\\},\\{");
+                      int minX=0,minY=0,minZ=0,maxX=0,maxY=0,maxZ=0,count=0;
+                      for (String bs : blocks) {
+                          bs = bs.replace("{","").replace("}","").trim();
+                          if (bs.isEmpty()) continue;
+                          int x=0,y=0,z=0;
+                          for (String part : bs.split(",")) {
+                              int cp = part.indexOf(":");
+                              if (cp<0) continue;
+                              String key = part.substring(0,cp).trim().replace("\"","");
+                              int val = Integer.parseInt(part.substring(cp+1).trim().replace("\"",""));
+                              if (key.equals("x")) x=val;
+                              else if (key.equals("y")) y=val;
+                              else if (key.equals("z")) z=val;
+                          }
+                          if (count==0) { minX=maxX=x; minY=maxY=y; minZ=maxZ=z; }
+                          else { minX=Math.min(minX,x); maxX=Math.max(maxX,x); minY=Math.min(minY,y); maxY=Math.max(maxY,y); minZ=Math.min(minZ,z); maxZ=Math.max(maxZ,z); }
+                          count++;
+                      }
+                      p.sendMessage("Preview of " + fn + " (" + count + " blocks):");
+                      p.sendMessage("  Size: " + (maxX-minX+1) + "x" + (maxY-minY+1) + "x" + (maxZ-minZ+1));
+                      p.sendMessage("  Will paste at your location");
+                      // Show particles at corners
+                      Location loc2 = loc.clone();
+                      for (int x : new int[]{minX,maxX}) for (int z : new int[]{minZ,maxZ})
+                          p.spawnParticle(Particle.FLAME, loc2.add(x,0,z), 1);
+                  } catch (Exception e) { p.sendMessage("Error: " + e.getMessage()); }
                   return true;
               }
           }
@@ -152,61 +527,38 @@ jobs:
               <modelVersion>4.0.0</modelVersion>
               <groupId>com.mamad396</groupId>
               <artifactId>JsonPaster</artifactId>
-              <version>1.0</version>
+              <version>3.0</version>
               <packaging>jar</packaging>
-              
-              <properties>
-                  <java.version>17</java.version>
-              </properties>
-              
+              <properties><java.version>17</java.version></properties>
               <repositories>
-                  <repository>
-                      <id>papermc</id>
-                      <url>https://repo.papermc.io/repository/maven-public/</url>
-                  </repository>
+                  <repository><id>papermc</id><url>https://repo.papermc.io/repository/maven-public/</url></repository>
+                  <repository><id>enginehub</id><url>https://maven.enginehub.org/repo/</url></repository>
               </repositories>
-              
               <dependencies>
-                  <dependency>
-                      <groupId>io.papermc.paper</groupId>
-                      <artifactId>paper-api</artifactId>
-                      <version>1.20.4-R0.1-SNAPSHOT</version>
-                      <scope>provided</scope>
-                  </dependency>
+                  <dependency><groupId>io.papermc.paper</groupId><artifactId>paper-api</artifactId><version>1.20.4-R0.1-SNAPSHOT</version><scope>provided</scope></dependency>
+                  <dependency><groupId>com.sk89q.worldedit</groupId><artifactId>worldedit-bukkit</artifactId><version>7.2.15</version><scope>provided</scope></dependency>
+                  <dependency><groupId>com.google.code.gson</groupId><artifactId>gson</artifactId><version>2.10.1</version></dependency>
               </dependencies>
-              
-              <build>
-                  <plugins>
-                      <plugin>
-                          <groupId>org.apache.maven.plugins</groupId>
-                          <artifactId>maven-compiler-plugin</artifactId>
-                          <version>3.11.0</version>
-                          <configuration>
-                              <source>${java.version}</source>
-                              <target>${java.version}</target>
-                          </configuration>
-                      </plugin>
-                  </plugins>
-              </build>
+              <build><plugins><plugin><groupId>org.apache.maven.plugins</groupId><artifactId>maven-compiler-plugin</artifactId><version>3.11.0</version><configuration><source>17</source><target>17</target></configuration></plugin></plugins></build>
           </project>
           EOF
 
       - name: Build with Maven
         run: mvn clean package -B
 
-      - name: Copy JAR to releases folder
-        run: cp target/JsonPaster-1.0.jar releases/
+      - name: Copy JAR to releases
+        run: cp target/JsonPaster-3.0.jar releases/
 
-      - name: Commit and push JAR file
+      - name: Commit and push JAR
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add releases/JsonPaster-1.0.jar
-          git commit -m "Update plugin JAR" || echo "No changes to commit"
+          git add releases/JsonPaster-3.0.jar
+          git commit -m "JsonPaster Pro v3.0" || echo "No changes"
           git push
 
-      - name: Upload JAR as Artifact
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: JsonPaster
-          path: target/JsonPaster-1.0.jar
+          name: JsonPaster-Pro-v3
+          path: target/JsonPaster-3.0.jar
