@@ -1,6 +1,9 @@
 name: Build BuilderEssentials
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -10,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+      
       - uses: actions/setup-java@v4
         with:
           java-version: '21'
@@ -25,13 +32,13 @@ jobs:
 
       - name: Create plugin.yml
         run: |
-          cat > src/main/resources/plugin.yml << 'EOF'
+          cat > src/main/resources/plugin.yml << 'PLUGINEOF'
           name: BuilderEssentials
-          version: 1.0
+          version: 1.0.0
           main: com.mamad396.builderessentials.BuilderEssentials
           api-version: '1.21'
           author: mamad396
-          description: 70+ building tools for professional builders
+          description: 70+ professional building tools
           softdepend: [FastAsyncWorldEdit]
           
           commands:
@@ -44,14 +51,13 @@ jobs:
               description: Fill tools menu
               aliases: [filler, paint]
             shapes:
-              description: Shape generator menu
+              description: Shape generator
               aliases: [gen, generate]
             terrain:
               description: Terrain tools
               aliases: [terra, land]
             tree:
               description: Tree generator
-              aliases: [treegen]
             schematic:
               description: Schematic manager
               aliases: [schem, blueprint]
@@ -66,15 +72,15 @@ jobs:
               description: Brush settings
               aliases: [br]
             grid:
-              description: Toggle build grid
+              description: Build grid system
             measure:
-              description: Measure distance
-          EOF
+              description: Measure distance tool
+          PLUGINEOF
 
       - name: Create config.yml
         run: |
-          cat > src/main/resources/config.yml << 'EOF'
-          config-version: 1.0
+          cat > src/main/resources/config.yml << 'CONFIGEOF'
+          config-version: 1.0.0
           prefix: "<dark_gray>[<gold>🏗️</gold>]</dark_gray> <gray>"
           max-undo-history: 50
           max-blocks-per-action: 100000
@@ -109,22 +115,24 @@ jobs:
               minor-radius: 3
             measure-tool:
               enabled: true
-          EOF
+          CONFIGEOF
 
       - name: Create main plugin class
         run: |
-          cat > src/main/kotlin/com/mamad396/builderessentials/BuilderEssentials.kt << 'EOF'
+          cat > src/main/kotlin/com/mamad396/builderessentials/BuilderEssentials.kt << 'MAINEOF'
           package com.mamad396.builderessentials
 
           import com.mamad396.builderessentials.commands.*
           import com.mamad396.builderessentials.listeners.*
+          import com.mamad396.builderessentials.shapes.ShapeGenerator
           import net.kyori.adventure.text.minimessage.MiniMessage
           import org.bukkit.Location
           import org.bukkit.Material
           import org.bukkit.block.data.BlockData
           import org.bukkit.plugin.java.JavaPlugin
-          import java.util.UUID
+          import java.io.File
           import java.util.Stack
+          import java.util.UUID
           import java.util.concurrent.ConcurrentHashMap
 
           class BuilderEssentials : JavaPlugin() {
@@ -135,27 +143,32 @@ jobs:
 
               val mm: MiniMessage = MiniMessage.miniMessage()
               
-              val wandPos1: MutableMap<UUID, Location> = ConcurrentHashMap()
-              val wandPos2: MutableMap<UUID, Location> = ConcurrentHashMap()
-              val brushSize: MutableMap<UUID, Int> = ConcurrentHashMap()
-              val brushMaterial: MutableMap<UUID, Material> = ConcurrentHashMap()
-              val undoHistory: MutableMap<UUID, Stack<MutableMap<Location, BlockData>>> = ConcurrentHashMap()
-              val redoHistory: MutableMap<UUID, Stack<MutableMap<Location, BlockData>>> = ConcurrentHashMap()
-              val palettes: MutableMap<UUID, MutableMap<String, MutableList<Material>>> = ConcurrentHashMap()
-              val gridToggled: MutableMap<UUID, Boolean> = ConcurrentHashMap()
-              val snapGrid: MutableMap<UUID, Boolean> = ConcurrentHashMap()
-              val gridSize: MutableMap<UUID, Int> = ConcurrentHashMap()
+              val wandPos1: ConcurrentHashMap<UUID, Location> = ConcurrentHashMap()
+              val wandPos2: ConcurrentHashMap<UUID, Location> = ConcurrentHashMap()
+              val brushSize: ConcurrentHashMap<UUID, Int> = ConcurrentHashMap()
+              val brushMaterial: ConcurrentHashMap<UUID, Material> = ConcurrentHashMap()
+              val undoHistory: ConcurrentHashMap<UUID, Stack<HashMap<Location, BlockData>>> = ConcurrentHashMap()
+              val redoHistory: ConcurrentHashMap<UUID, Stack<HashMap<Location, BlockData>>> = ConcurrentHashMap()
+              val palettes: ConcurrentHashMap<UUID, HashMap<String, ArrayList<Material>>> = ConcurrentHashMap()
+              val gridToggled: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap()
+              val snapGrid: ConcurrentHashMap<UUID, Boolean> = ConcurrentHashMap()
+              val gridSize: ConcurrentHashMap<UUID, Int> = ConcurrentHashMap()
 
               override fun onEnable() {
                   instance = this
                   saveDefaultConfig()
+                  
                   registerCommands()
                   registerListeners()
-                  logger.info("🏗️ BuilderEssentials v1.0 enabled!")
+                  
+                  logger.info("🏗️ BuilderEssentials v1.0.0 enabled successfully!")
+                  logger.info("   Tools: 70+ building features")
+                  logger.info("   Author: mamad396")
               }
 
               override fun onDisable() {
-                  logger.info("BuilderEssentials disabled!")
+                  saveAllData()
+                  logger.info("BuilderEssentials disabled. Data saved!")
               }
 
               private fun registerCommands() {
@@ -176,20 +189,34 @@ jobs:
 
               private fun registerListeners() {
                   val pm = server.pluginManager
-                  pm.registerEvents(SnowballListener(this), this)
-                  pm.registerEvents(EggListener(this), this)
-                  pm.registerEvents(ArrowListener(this), this)
-                  pm.registerEvents(PearlListener(this), this)
-                  pm.registerEvents(TridentListener(this), this)
-                  pm.registerEvents(WandListener(this), this)
-                  pm.registerEvents(PaintListener(this), this)
-                  pm.registerEvents(FastBreakListener(this), this)
-                  pm.registerEvents(VeinMinerListener(this), this)
-                  pm.registerEvents(MeasureListener(this), this)
+                  if (config.getBoolean("tools.snowball-filler.enabled", true)) pm.registerEvents(SnowballListener(this), this)
+                  if (config.getBoolean("tools.egg-filler.enabled", true)) pm.registerEvents(EggListener(this), this)
+                  if (config.getBoolean("tools.arrow-placer.enabled", true)) pm.registerEvents(ArrowListener(this), this)
+                  if (config.getBoolean("tools.ender-pearl-fill.enabled", true)) pm.registerEvents(PearlListener(this), this)
+                  if (config.getBoolean("tools.trident-builder.enabled", true)) pm.registerEvents(TridentListener(this), this)
+                  if (config.getBoolean("tools.selection-wand.enabled", true)) pm.registerEvents(WandListener(this), this)
+                  if (config.getBoolean("tools.paint-wand.enabled", true)) pm.registerEvents(PaintListener(this), this)
+                  if (config.getBoolean("tools.fast-break.enabled", true)) pm.registerEvents(FastBreakListener(this), this)
+                  if (config.getBoolean("tools.vein-miner.enabled", true)) pm.registerEvents(VeinMinerListener(this), this)
+                  if (config.getBoolean("tools.measure-tool.enabled", true)) pm.registerEvents(MeasureListener(this), this)
                   pm.registerEvents(GridListener(this), this)
               }
 
-              fun addUndo(uuid: UUID, blocks: MutableMap<Location, BlockData>) {
+              private fun saveAllData() {
+                  val dataFolder = File(dataFolder, "data")
+                  if (!dataFolder.exists()) dataFolder.mkdirs()
+                  
+                  palettes.forEach { (uuid, playerPalettes) ->
+                      val file = File(dataFolder, "$uuid-palettes.yml")
+                      val config = org.bukkit.configuration.file.YamlConfiguration()
+                      playerPalettes.forEach { (name, mats) ->
+                          config.set(name, mats.map { it.name })
+                      }
+                      config.save(file)
+                  }
+              }
+
+              fun addUndo(uuid: UUID, blocks: HashMap<Location, BlockData>) {
                   val stack = undoHistory.getOrPut(uuid) { Stack() }
                   stack.push(blocks)
                   if (stack.size > config.getInt("max-undo-history", 50)) {
@@ -198,11 +225,10 @@ jobs:
                   redoHistory[uuid]?.clear()
               }
           }
-          EOF
+          MAINEOF
 
-      - name: Create all command classes
+      - name: Create command classes
         run: |
-          # MainCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/MainCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -217,55 +243,89 @@ jobs:
           class MainCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
                   if (args.isEmpty() || args[0].equals("help", true)) {
-                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>🏗️ BuilderEssentials v1.0</bold></gold>"))
-                      sender.sendMessage(plugin.mm.deserialize("<gray>70+ Building Tools for Professional Builders</gray>"))
-                      sender.sendMessage("")
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/builder tools</yellow><gray> - Get all building tools</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/wand</yellow><gray> - Get selection wand</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/fill</yellow><gray> - Filler tools menu</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/shapes</yellow><gray> - Shape generator</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/terrain</yellow><gray> - Terrain tools</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/tree</yellow><gray> - Tree generator</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/schematic</yellow><gray> - Schematic manager</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/undo</yellow> <gray>/redo</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/palette</yellow><gray> - Block palettes</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/brush</yellow><gray> - Brush settings</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/grid</yellow><gray> - Grid system</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<yellow>/measure</yellow><gray> - Measure tool</gray>"))
+                      sendHelp(sender)
                       return true
                   }
                   
-                  if (args[0].equals("tools", true)) {
-                      if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                      giveTools(sender)
-                      return true
+                  when (args[0].lowercase()) {
+                      "tools" -> {
+                          if (sender is Player) {
+                              giveTools(sender)
+                          } else {
+                              sender.sendMessage("Player only!")
+                          }
+                      }
+                      "reload" -> {
+                          if (sender.hasPermission("builder.admin")) {
+                              plugin.reloadConfig()
+                              sender.sendMessage(plugin.mm.deserialize("<green>✅ Config reloaded!</green>"))
+                          } else {
+                              sender.sendMessage(plugin.mm.deserialize("<red>❌ No permission!</red>"))
+                          }
+                      }
+                      else -> sendHelp(sender)
                   }
-                  
-                  if (args[0].equals("reload", true) && sender.hasPermission("builder.admin")) {
-                      plugin.reloadConfig()
-                      sender.sendMessage(plugin.mm.deserialize("<green>✅ Configuration reloaded!</green>"))
-                      return true
-                  }
-                  
                   return true
               }
               
+              private fun sendHelp(sender: CommandSender) {
+                  sender.sendMessage(plugin.mm.deserialize("<gold><bold>🏗️ BuilderEssentials v1.0.0</bold></gold>"))
+                  sender.sendMessage(plugin.mm.deserialize("<gray>70+ Professional Building Tools</gray>"))
+                  sender.sendMessage("")
+                  sender.sendMessage(plugin.mm.deserialize("<yellow><bold>Commands:</bold></yellow>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/builder tools</white><gray> - Get all building tools</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/wand</white><gray> - Get selection wand</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/fill</white><gray> - Filler tools (snowball, egg, arrow, pearl, trident)</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/shapes <type> <radius></white><gray> - Generate shapes</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/terrain <type></white><gray> - Terrain tools</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/tree <type></white><gray> - Tree generator</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/schematic <save/load/list></white><gray> - Schematic manager</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/undo</white><gray> / <white>/redo</white><gray> - Undo/Redo actions</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/palette <save/load/list></white><gray> - Block palettes</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/brush <size/material></white><gray> - Brush settings</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/grid <on/off/snap/size></white><gray> - Grid system</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<white>/measure</white><gray> - Distance tool (use compass)</gray>"))
+                  sender.sendMessage("")
+                  sender.sendMessage(plugin.mm.deserialize("<yellow><bold>🎯 Quick Start:</bold></yellow>"))
+                  sender.sendMessage(plugin.mm.deserialize("<gray>1. Get tools: </gray><white>/builder tools</white>"))
+                  sender.sendMessage(plugin.mm.deserialize("<gray>2. Select area: Right/Left click with </gray><white>Wooden Axe</white>"))
+                  sender.sendMessage(plugin.mm.deserialize("<gray>3. Throw </gray><white>Snowball</white><gray> to build trails!</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<gray>4. Use </gray><white>Blaze Rod</white><gray> to paint spheres!</gray>"))
+                  sender.sendMessage(plugin.mm.deserialize("<gray>5. Type </gray><white>/shapes sphere 5</white><gray> to generate!</gray>"))
+              }
+              
               private fun giveTools(player: Player) {
-                  player.inventory.addItem(ItemStack(Material.WOODEN_AXE))
-                  player.inventory.addItem(ItemStack(Material.BLAZE_ROD))
-                  player.inventory.addItem(ItemStack(Material.SNOWBALL, 16))
-                  player.inventory.addItem(ItemStack(Material.EGG, 16))
-                  player.inventory.addItem(ItemStack(Material.ENDER_PEARL, 16))
-                  player.inventory.addItem(ItemStack(Material.TRIDENT))
+                  val tools = listOf(
+                      Pair(Material.WOODEN_AXE, "<gold>🪄 Selection Wand</gold>"),
+                      Pair(Material.BLAZE_ROD, "<gold>🖌️ Paint Wand</gold>"),
+                      Pair(Material.SNOWBALL, "<white>❄️ Snowball Filler</white>"),
+                      Pair(Material.EGG, "<white>🥚 Egg Placer</white>"),
+                      Pair(Material.ENDER_PEARL, "<dark_purple>💜 Pearl Filler</dark_purple>"),
+                      Pair(Material.TRIDENT, "<aqua>🔱 Trident Builder</aqua>"),
+                      Pair(Material.COMPASS, "<aqua>📏 Measure Tool</aqua>")
+                  )
+                  
+                  tools.forEach { (material, displayName) ->
+                      val item = if (material == Material.SNOWBALL || material == Material.EGG || material == Material.ENDER_PEARL) {
+                          ItemStack(material, 16)
+                      } else {
+                          ItemStack(material)
+                      }
+                      val meta = item.itemMeta
+                      meta.displayName(plugin.mm.deserialize(displayName))
+                      item.itemMeta = meta
+                      player.inventory.addItem(item)
+                  }
+                  
                   player.inventory.addItem(ItemStack(Material.BOW))
                   player.inventory.addItem(ItemStack(Material.ARROW, 64))
-                  player.inventory.addItem(ItemStack(Material.COMPASS))
-                  player.sendMessage(plugin.mm.deserialize("<green>✅ All builder tools added to inventory!</green>"))
+                  
+                  player.sendMessage(plugin.mm.deserialize("<green>✅ All 7 builder tools added to your inventory!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<gray>Use </gray><white>/builder help</white><gray> for command list</gray>"))
               }
           }
           EOF
 
-          # WandCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/WandCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -279,23 +339,30 @@ jobs:
 
           class WandCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
+                      return true
+                  }
+                  
                   val wand = ItemStack(Material.WOODEN_AXE)
                   val meta = wand.itemMeta
                   meta.displayName(plugin.mm.deserialize("<gold><bold>🪄 Builder Wand</bold></gold>"))
                   meta.lore(listOf(
-                      plugin.mm.deserialize("<gray>Left click: Set pos1</gray>"),
-                      plugin.mm.deserialize("<gray>Right click: Set pos2</gray>")
+                      plugin.mm.deserialize("<gray>Left click block: Set position 1</gray>"),
+                      plugin.mm.deserialize("<gray>Right click block: Set position 2</gray>"),
+                      plugin.mm.deserialize("<yellow>Select an area, then use shapes!</yellow>")
                   ))
+                  meta.isUnbreakable = true
                   wand.itemMeta = meta
+                  
                   sender.inventory.addItem(wand)
-                  sender.sendMessage(plugin.mm.deserialize("<green>✅ Wand added!</green>"))
+                  sender.sendMessage(plugin.mm.deserialize("<green>✅ Selection wand added!</green>"))
+                  sender.sendMessage(plugin.mm.deserialize("<gray>Left click: Pos1 | Right click: Pos2</gray>"))
                   return true
               }
           }
           EOF
 
-          # FillCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/FillCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -309,17 +376,33 @@ jobs:
 
           class FillCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  if (args.isEmpty()) {
-                      sender.sendMessage(plugin.mm.deserialize("<gold>❄️ Filler Tools:</gold>"))
-                      sender.sendMessage(plugin.mm.deserialize("<white>Snowball</white><gray> - Trail filler</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<white>Egg</white><gray> - Point filler</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<white>Arrow</white><gray> - Block placer</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<white>Ender Pearl</white><gray> - Area fill</gray>"))
-                      sender.sendMessage(plugin.mm.deserialize("<white>Trident</white><gray> - Line builder</gray>"))
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
                       return true
                   }
+                  
+                  if (args.isEmpty() || args[0].equals("help", true)) {
+                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>❄️ Filler Tools</bold></gold>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/fill snowball</white><gray> - Trail builder (throw to build)</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/fill egg</white><gray> - Point filler (throw to place)</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/fill arrow</white><gray> - Arrow placer (shoot to place)</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/fill pearl</white><gray> - Area filler (teleport to fill)</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/fill trident</white><gray> - Line builder (throw trident)</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/fill all</white><gray> - Get all fillers</gray>"))
+                      sender.sendMessage("")
+                      sender.sendMessage(plugin.mm.deserialize("<yellow>💡 Hold block in offhand to choose material!</yellow>"))
+                      return true
+                  }
+                  
                   when (args[0].lowercase()) {
+                      "snowball" -> giveItem(sender, Material.SNOWBALL, 16, "❄️ Snowball Filler")
+                      "egg" -> giveItem(sender, Material.EGG, 16, "🥚 Egg Placer")
+                      "arrow" -> {
+                          giveItem(sender, Material.BOW, 1, "🏹 Arrow Placer")
+                          sender.inventory.addItem(ItemStack(Material.ARROW, 64))
+                      }
+                      "pearl" -> giveItem(sender, Material.ENDER_PEARL, 16, "💜 Pearl Filler")
+                      "trident" -> giveItem(sender, Material.TRIDENT, 1, "🔱 Trident Builder")
                       "all" -> {
                           sender.inventory.addItem(ItemStack(Material.SNOWBALL, 16))
                           sender.inventory.addItem(ItemStack(Material.EGG, 16))
@@ -329,13 +412,22 @@ jobs:
                           sender.inventory.addItem(ItemStack(Material.ARROW, 64))
                           sender.sendMessage(plugin.mm.deserialize("<green>✅ All filler tools added!</green>"))
                       }
+                      else -> sender.sendMessage(plugin.mm.deserialize("<red>Unknown filler type!</red>"))
                   }
                   return true
+              }
+              
+              private fun giveItem(player: Player, material: Material, amount: Int, name: String) {
+                  val item = ItemStack(material, amount)
+                  val meta = item.itemMeta
+                  meta.displayName(plugin.mm.deserialize("<white>$name</white>"))
+                  item.itemMeta = meta
+                  player.inventory.addItem(item)
+                  player.sendMessage(plugin.mm.deserialize("<green>✅ $name added!</green>"))
               }
           }
           EOF
 
-          # ShapeCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/ShapeCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -351,35 +443,61 @@ jobs:
               private val shapeGen = ShapeGenerator(plugin)
               
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  if (args.isEmpty()) {
-                      sender.sendMessage(plugin.mm.deserialize("<gold>📐 Shapes: circle, sphere, cube, cylinder, pyramid, cone, dome, torus, spiral, staircase</gold>"))
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
                       return true
                   }
                   
-                  val material: Material = plugin.brushMaterial[sender.uniqueId] ?: Material.STONE
-                  val center: org.bukkit.Location = sender.location
-                  val radius: Int = args.getOrNull(1)?.toIntOrNull() ?: 5
-                  val hollow: Boolean = args.getOrNull(2)?.equals("hollow", true) ?: false
+                  if (args.isEmpty() || args[0].equals("help", true)) {
+                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>📐 Shape Generator</bold></gold>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>circle</white><gray> - 2D circle</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>sphere</white><gray> - 3D ball</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>cube</white><gray> - Box</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>cylinder</white><gray> - Tube</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>pyramid</white><gray> - Pyramid</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>cone</white><gray> - Cone</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>dome</white><gray> - Half sphere</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>torus</white><gray> - Donut</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>spiral</white><gray> - Spiral tower</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>staircase</white><gray> - Stairs</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<gray>Usage: </gray><white>/shapes sphere 5</white>"))
+                      sender.sendMessage(plugin.mm.deserialize("<gray>Add 'hollow': </gray><white>/shapes sphere 5 hollow</white>"))
+                      return true
+                  }
                   
-                  when (args[0].lowercase()) {
-                      "circle" -> shapeGen.generateCircle(sender, center, radius, material, hollow)
-                      "sphere" -> shapeGen.generateSphere(sender, center, radius, material, hollow)
-                      "cube" -> shapeGen.generateCube(sender, center, radius, material, hollow)
-                      "cylinder" -> shapeGen.generateCylinder(sender, center, radius, args.getOrNull(2)?.toIntOrNull() ?: 5, material, hollow)
-                      "pyramid" -> shapeGen.generatePyramid(sender, center, radius, material)
-                      "cone" -> shapeGen.generateCone(sender, center, radius, args.getOrNull(2)?.toIntOrNull() ?: 5, material)
-                      "dome" -> shapeGen.generateDome(sender, center, radius, material)
-                      "torus" -> shapeGen.generateTorus(sender, center, radius, material)
-                      "spiral" -> shapeGen.generateSpiral(sender, center, radius, args.getOrNull(2)?.toIntOrNull() ?: 10, material)
-                      "staircase" -> shapeGen.generateStaircase(sender, center, args.getOrNull(1)?.toIntOrNull() ?: 3, args.getOrNull(2)?.toIntOrNull() ?: 5, material)
+                  val shape = args[0].lowercase()
+                  val radius = args.getOrNull(1)?.toIntOrNull() ?: 5
+                  val height = args.getOrNull(2)?.toIntOrNull() ?: 5
+                  val hollow = args.any { it.equals("hollow", true) }
+                  
+                  val center = sender.location
+                  val material = plugin.brushMaterial[sender.uniqueId] 
+                      ?: sender.inventory.itemInMainHand.type.takeIf { it.isBlock } 
+                      ?: Material.STONE
+                  
+                  try {
+                      when (shape) {
+                          "circle" -> shapeGen.generateCircle(sender, center, radius, material, hollow)
+                          "sphere" -> shapeGen.generateSphere(sender, center, radius, material, hollow)
+                          "cube" -> shapeGen.generateCube(sender, center, radius, material, hollow)
+                          "cylinder" -> shapeGen.generateCylinder(sender, center, radius, height, material, hollow)
+                          "pyramid" -> shapeGen.generatePyramid(sender, center, radius, material)
+                          "cone" -> shapeGen.generateCone(sender, center, radius, height, material)
+                          "dome" -> shapeGen.generateDome(sender, center, radius, material)
+                          "torus" -> shapeGen.generateTorus(sender, center, radius, material)
+                          "spiral" -> shapeGen.generateSpiral(sender, center, radius, height, material)
+                          "staircase" -> shapeGen.generateStaircase(sender, center, radius, height, material)
+                          else -> sender.sendMessage(plugin.mm.deserialize("<red>Unknown shape! Use /shapes help</red>"))
+                      }
+                  } catch (e: Exception) {
+                      sender.sendMessage(plugin.mm.deserialize("<red>Error generating shape!</red>"))
+                      plugin.logger.warning("Shape error: ${e.message}")
                   }
                   return true
               }
           }
           EOF
 
-          # TerrainCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/TerrainCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -395,83 +513,101 @@ jobs:
 
           class TerrainCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  if (args.isEmpty()) {
-                      sender.sendMessage(plugin.mm.deserialize("<gold>🏔️ Terrain: height, smooth, flat, noise, erosion</gold>"))
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
                       return true
                   }
                   
-                  val radius: Int = plugin.brushSize.getOrDefault(sender.uniqueId, 5)
-                  val center: Location = sender.location
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  if (args.isEmpty() || args[0].equals("help", true)) {
+                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>🏔️ Terrain Tools</bold></gold>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/terrain height <amount></white><gray> - Raise/lower ground</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/terrain flat</white><gray> - Flatten area</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/terrain noise <scale></white><gray> - Natural terrain</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/terrain erosion <strength></white><gray> - Erode blocks</gray>"))
+                      return true
+                  }
                   
-                  when (args[0].lowercase()) {
-                      "height" -> {
-                          val amount: Int = args.getOrNull(1)?.toIntOrNull() ?: 1
-                          for (x in -radius..radius) for (z in -radius..radius) {
-                              if (x * x + z * z <= radius * radius) {
-                                  for (y in -Math.abs(amount)..Math.abs(amount)) {
-                                      val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
-                                      if (amount > 0 && loc.block.type == Material.AIR) {
-                                          undoMap[loc.clone()] = loc.block.blockData
-                                          loc.block.type = Material.GRASS_BLOCK
+                  val radius = plugin.brushSize.getOrDefault(sender.uniqueId, 5)
+                  val center = sender.location
+                  val undoMap = HashMap<Location, BlockData>()
+                  
+                  try {
+                      when (args[0].lowercase()) {
+                          "height" -> {
+                              val amount = args.getOrNull(1)?.toIntOrNull() ?: 1
+                              for (x in -radius..radius) for (z in -radius..radius) {
+                                  if (x * x + z * z <= radius * radius) {
+                                      for (y in -Math.abs(amount)..Math.abs(amount)) {
+                                          val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                                          if (amount > 0 && loc.block.type == Material.AIR) {
+                                              undoMap[loc.clone()] = loc.block.blockData
+                                              loc.block.type = Material.GRASS_BLOCK
+                                          }
                                       }
                                   }
                               }
                           }
-                      }
-                      "flat" -> {
-                          val targetY: Int = center.blockY
-                          for (x in -radius..radius) for (z in -radius..radius) {
-                              if (x * x + z * z <= radius * radius) {
-                                  val loc: Location = center.clone().add(x.toDouble(), 0.0, z.toDouble())
-                                  val highest: org.bukkit.block.Block = loc.world?.getHighestBlockAt(loc) ?: continue
-                                  val highestY: Int = highest.y
-                                  if (highestY != targetY) {
-                                      undoMap[highest.location.clone()] = highest.blockData
-                                      highest.type = Material.GRASS_BLOCK
+                          "flat" -> {
+                              val targetY = center.blockY
+                              for (x in -radius..radius) for (z in -radius..radius) {
+                                  if (x * x + z * z <= radius * radius) {
+                                      val loc = center.clone().add(x.toDouble(), 0.0, z.toDouble())
+                                      val highest = loc.world?.getHighestBlockAt(loc) ?: continue
+                                      val highestY = highest.y
+                                      if (highestY != targetY) {
+                                          undoMap[highest.location.clone()] = highest.blockData
+                                          highest.type = Material.GRASS_BLOCK
+                                      }
                                   }
                               }
                           }
-                      }
-                      "noise" -> {
-                          val scale: Double = args.getOrNull(1)?.toDoubleOrNull() ?: 0.1
-                          for (x in -radius..radius) for (z in -radius..radius) {
-                              if (x * x + z * z <= radius * radius) {
-                                  val noise: Double = Math.sin(x * scale) * Math.cos(z * scale) * 5
-                                  val loc: Location = center.clone().add(x.toDouble(), noise, z.toDouble())
-                                  if (loc.block.type == Material.AIR) {
-                                      undoMap[loc.clone()] = loc.block.blockData
-                                      loc.block.type = Material.STONE
+                          "noise" -> {
+                              val scale = args.getOrNull(1)?.toDoubleOrNull() ?: 0.1
+                              for (x in -radius..radius) for (z in -radius..radius) {
+                                  if (x * x + z * z <= radius * radius) {
+                                      val noise = Math.sin(x * scale) * Math.cos(z * scale) * 5
+                                      val loc = center.clone().add(x.toDouble(), noise, z.toDouble())
+                                      if (loc.block.type == Material.AIR) {
+                                          undoMap[loc.clone()] = loc.block.blockData
+                                          loc.block.type = Material.STONE
+                                      }
                                   }
                               }
                           }
-                      }
-                      "erosion" -> {
-                          val strength: Double = args.getOrNull(1)?.toDoubleOrNull() ?: 0.3
-                          for (x in -radius..radius) for (z in -radius..radius) {
-                              if (x * x + z * z <= radius * radius && Random.nextDouble() < strength) {
-                                  val loc: Location = center.clone().add(x.toDouble(), -1.0, z.toDouble())
-                                  val block: org.bukkit.block.Block = loc.block
-                                  if (block.type != Material.AIR && block.type != Material.BEDROCK) {
-                                      undoMap[loc.clone()] = block.blockData
-                                      block.type = Material.AIR
+                          "erosion" -> {
+                              val strength = args.getOrNull(1)?.toDoubleOrNull() ?: 0.3
+                              for (x in -radius..radius) for (z in -radius..radius) {
+                                  if (x * x + z * z <= radius * radius && Random.nextDouble() < strength) {
+                                      val loc = center.clone().add(x.toDouble(), -1.0, z.toDouble())
+                                      val block = loc.block
+                                      if (block.type != Material.AIR && block.type != Material.BEDROCK) {
+                                          undoMap[loc.clone()] = block.blockData
+                                          block.type = Material.AIR
+                                      }
                                   }
                               }
                           }
+                          else -> {
+                              sender.sendMessage(plugin.mm.deserialize("<red>Unknown terrain type!</red>"))
+                              return true
+                          }
                       }
-                  }
-                  
-                  if (undoMap.isNotEmpty()) {
-                      plugin.addUndo(sender.uniqueId, undoMap)
-                      sender.sendMessage(plugin.mm.deserialize("<green>✅ Terrain modified! (${undoMap.size} blocks)</green>"))
+                      
+                      if (undoMap.isNotEmpty()) {
+                          plugin.addUndo(sender.uniqueId, undoMap)
+                          sender.sendMessage(plugin.mm.deserialize("<green>✅ Terrain modified! (${undoMap.size} blocks)</green>"))
+                      } else {
+                          sender.sendMessage(plugin.mm.deserialize("<yellow>No blocks changed.</yellow>"))
+                      }
+                  } catch (e: Exception) {
+                      sender.sendMessage(plugin.mm.deserialize("<red>Terrain error!</red>"))
+                      plugin.logger.warning("Terrain error: ${e.message}")
                   }
                   return true
               }
           }
           EOF
 
-          # TreeCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/TreeCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -484,13 +620,22 @@ jobs:
 
           class TreeCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  if (args.isEmpty()) {
-                      sender.sendMessage(plugin.mm.deserialize("<gold>🌳 Types: oak, spruce, birch, jungle, acacia, dark_oak, cherry, mangrove, big_oak, big_jungle</gold>"))
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
                       return true
                   }
                   
-                  val treeType: TreeType = when (args[0].lowercase()) {
+                  if (args.isEmpty() || args[0].equals("help", true)) {
+                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>🌳 Tree Generator</bold></gold>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>oak, spruce, birch, jungle, acacia</white>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>dark_oak, cherry, mangrove</white>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>big_oak, big_jungle</white>"))
+                      sender.sendMessage(plugin.mm.deserialize("<gray>Usage: </gray><white>/tree oak</white>"))
+                      return true
+                  }
+                  
+                  val location = sender.location
+                  val treeType = when (args[0].lowercase()) {
                       "oak" -> TreeType.TREE
                       "spruce" -> TreeType.REDWOOD
                       "birch" -> TreeType.BIRCH
@@ -501,17 +646,24 @@ jobs:
                       "mangrove" -> TreeType.MANGROVE
                       "big_oak" -> TreeType.BIG_TREE
                       "big_jungle" -> TreeType.JUNGLE
-                      else -> { sender.sendMessage("Unknown type!"); return true }
+                      "swamp" -> TreeType.SWAMP
+                      else -> {
+                          sender.sendMessage(plugin.mm.deserialize("<red>Unknown tree type!</red>"))
+                          return true
+                      }
                   }
                   
-                  val success: Boolean = sender.world.generateTree(sender.location, treeType)
-                  sender.sendMessage(plugin.mm.deserialize(if (success) "<green>🌳 Tree generated!</green>" else "<red>Failed!</red>"))
+                  val success = location.world?.generateTree(location, treeType) ?: false
+                  if (success) {
+                      sender.sendMessage(plugin.mm.deserialize("<green>🌳 Tree generated!</green>"))
+                  } else {
+                      sender.sendMessage(plugin.mm.deserialize("<red>Failed! Check location (need space above)</red>"))
+                  }
                   return true
               }
           }
           EOF
 
-          # SchematicCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/SchematicCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -526,82 +678,130 @@ jobs:
           import java.io.File
 
           class SchematicCommand(private val plugin: BuilderEssentials) : CommandExecutor {
-              private val folder: File = File(plugin.dataFolder, "schematics")
+              private val folder = File(plugin.dataFolder, "schematics")
               
-              init { folder.mkdirs() }
+              init {
+                  if (!folder.exists()) folder.mkdirs()
+              }
               
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  if (args.isEmpty()) {
-                      sender.sendMessage(plugin.mm.deserialize("<gold>📋 /schematic save/load/list/delete <name></gold>"))
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
                       return true
                   }
                   
-                  when (args[0].lowercase()) {
-                      "save" -> { if (args.size >= 2) saveSchematic(sender, args[1]) }
-                      "load" -> { if (args.size >= 2) loadSchematic(sender, args[1]) }
-                      "list" -> {
-                          val files: Array<File>? = folder.listFiles()
-                          files?.forEach { sender.sendMessage("• ${it.nameWithoutExtension}") }
-                              ?: sender.sendMessage("No schematics saved!")
-                      }
-                      "delete" -> {
-                          if (args.size >= 2) {
-                              val file: File = File(folder, "${args[1]}.schem")
-                              if (file.delete()) sender.sendMessage(plugin.mm.deserialize("<green>Deleted!</green>"))
+                  if (args.isEmpty() || args[0].equals("help", true)) {
+                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>📋 Schematic Manager</bold></gold>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/schematic save <name></white><gray> - Save selection</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/schematic load <name></white><gray> - Load schematic</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/schematic list</white><gray> - List schematics</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/schematic delete <name></white><gray> - Delete schematic</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<yellow>💡 Use wand to select area first!</yellow>"))
+                      return true
+                  }
+                  
+                  try {
+                      when (args[0].lowercase()) {
+                          "save" -> {
+                              if (args.size < 2) { sender.sendMessage("Usage: /schematic save <name>"); return true }
+                              saveSchematic(sender, args[1])
+                          }
+                          "load" -> {
+                              if (args.size < 2) { sender.sendMessage("Usage: /schematic load <name>"); return true }
+                              loadSchematic(sender, args[1])
+                          }
+                          "list" -> listSchematics(sender)
+                          "delete" -> {
+                              if (args.size < 2) { sender.sendMessage("Usage: /schematic delete <name>"); return true }
+                              deleteSchematic(sender, args[1])
                           }
                       }
+                  } catch (e: Exception) {
+                      sender.sendMessage(plugin.mm.deserialize("<red>Schematic error: ${e.message}</red>"))
                   }
                   return true
               }
               
               private fun saveSchematic(player: Player, name: String) {
-                  val pos1: Location? = plugin.wandPos1[player.uniqueId]
-                  val pos2: Location? = plugin.wandPos2[player.uniqueId]
-                  if (pos1 == null || pos2 == null) { player.sendMessage("Select area first!"); return }
+                  val pos1 = plugin.wandPos1[player.uniqueId]
+                  val pos2 = plugin.wandPos2[player.uniqueId]
+                  if (pos1 == null || pos2 == null) {
+                      player.sendMessage(plugin.mm.deserialize("<red>Select area with wand first!</red>"))
+                      return
+                  }
                   
-                  val file: File = File(folder, "$name.schem")
+                  val file = File(folder, "$name.schem")
                   file.bufferedWriter().use { writer ->
-                      val minX: Int = minOf(pos1.blockX, pos2.blockX)
-                      val maxX: Int = maxOf(pos1.blockX, pos2.blockX)
-                      val minY: Int = minOf(pos1.blockY, pos2.blockY)
-                      val maxY: Int = maxOf(pos1.blockY, pos2.blockY)
-                      val minZ: Int = minOf(pos1.blockZ, pos2.blockZ)
-                      val maxZ: Int = maxOf(pos1.blockZ, pos2.blockZ)
+                      val minX = minOf(pos1.blockX, pos2.blockX)
+                      val maxX = maxOf(pos1.blockX, pos2.blockX)
+                      val minY = minOf(pos1.blockY, pos2.blockY)
+                      val maxY = maxOf(pos1.blockY, pos2.blockY)
+                      val minZ = minOf(pos1.blockZ, pos2.blockZ)
+                      val maxZ = maxOf(pos1.blockZ, pos2.blockZ)
                       
                       writer.write("${maxX - minX + 1},${maxY - minY + 1},${maxZ - minZ + 1}\n")
+                      var count = 0
                       for (x in minX..maxX) for (y in minY..maxY) for (z in minZ..maxZ) {
-                          val loc: Location = Location(pos1.world, x.toDouble(), y.toDouble(), z.toDouble())
-                          val type: Material = loc.block.type
-                          if (type != Material.AIR) writer.write("${x - minX},${y - minY},${z - minZ}:$type\n")
+                          val loc = Location(pos1.world, x.toDouble(), y.toDouble(), z.toDouble())
+                          val type = loc.block.type
+                          if (type != Material.AIR) {
+                              writer.write("${x - minX},${y - minY},${z - minZ}:${type.name}\n")
+                              count++
+                          }
                       }
+                      player.sendMessage(plugin.mm.deserialize("<green>✅ Saved '$name' ($count blocks)</green>"))
                   }
-                  player.sendMessage(plugin.mm.deserialize("<green>✅ Saved: $name</green>"))
               }
               
               private fun loadSchematic(player: Player, name: String) {
-                  val file: File = File(folder, "$name.schem")
-                  if (!file.exists()) { player.sendMessage("Not found!"); return }
+                  val file = File(folder, "$name.schem")
+                  if (!file.exists()) {
+                      player.sendMessage(plugin.mm.deserialize("<red>Schematic '$name' not found!</red>"))
+                      return
+                  }
                   
-                  val lines: List<String> = file.readLines()
-                  val start: Location = player.location
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val lines = file.readLines()
+                  if (lines.isEmpty()) return
+                  
+                  val start = player.location
+                  val undoMap = HashMap<Location, BlockData>()
                   
                   for (i in 1 until lines.size) {
-                      val parts: List<String> = lines[i].split(":")
-                      val coords: List<Int> = parts[0].split(",").map { it.toInt() }
-                      val loc: Location = start.clone().add(coords[0].toDouble(), coords[1].toDouble(), coords[2].toDouble())
+                      val parts = lines[i].split(":")
+                      if (parts.size != 2) continue
+                      val coords = parts[0].split(",").map { it.toInt() }
+                      val loc = start.clone().add(coords[0].toDouble(), coords[1].toDouble(), coords[2].toDouble())
                       undoMap[loc.clone()] = loc.block.blockData
                       loc.block.type = Material.valueOf(parts[1])
                   }
                   
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>✅ Loaded: $name</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>✅ Loaded '$name' (${undoMap.size} blocks)</green>"))
+              }
+              
+              private fun listSchematics(player: Player) {
+                  val files = folder.listFiles { f -> f.name.endsWith(".schem") }
+                  if (files.isNullOrEmpty()) {
+                      player.sendMessage(plugin.mm.deserialize("<gray>No schematics saved yet.</gray>"))
+                      return
+                  }
+                  player.sendMessage(plugin.mm.deserialize("<gold><bold>📋 Saved Schematics:</bold></gold>"))
+                  files.forEach { file ->
+                      player.sendMessage(plugin.mm.deserialize("<white>• ${file.nameWithoutExtension}</white><gray> (${file.length() / 1024} KB)</gray>"))
+                  }
+              }
+              
+              private fun deleteSchematic(player: Player, name: String) {
+                  val file = File(folder, "$name.schem")
+                  if (file.delete()) {
+                      player.sendMessage(plugin.mm.deserialize("<green>✅ Deleted '$name'</green>"))
+                  } else {
+                      player.sendMessage(plugin.mm.deserialize("<red>Schematic not found!</red>"))
+                  }
               }
           }
           EOF
 
-          # UndoCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/UndoCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -616,30 +816,34 @@ jobs:
 
           class UndoCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
+                      return true
+                  }
                   
-                  val history: Stack<MutableMap<Location, BlockData>>? = plugin.undoHistory[sender.uniqueId]
+                  val history = plugin.undoHistory[sender.uniqueId]
                   if (history == null || history.isEmpty()) {
                       sender.sendMessage(plugin.mm.deserialize("<red>Nothing to undo!</red>"))
                       return true
                   }
                   
-                  val lastAction: MutableMap<Location, BlockData> = history.pop()
-                  val redoInfo: MutableMap<Location, BlockData> = mutableMapOf()
+                  val lastAction = history.pop()
+                  val redoInfo = HashMap<Location, BlockData>()
                   
-                  for ((loc: Location, blockData: BlockData) in lastAction) {
+                  for ((loc, blockData) in lastAction) {
                       redoInfo[loc.clone()] = loc.block.blockData
                       loc.block.blockData = blockData
                   }
                   
-                  plugin.redoHistory.getOrPut(sender.uniqueId) { Stack() }.push(redoInfo)
-                  sender.sendMessage(plugin.mm.deserialize("<green>↩️ Undo! (${lastAction.size} blocks)</green>"))
+                  val redoStack = plugin.redoHistory.getOrPut(sender.uniqueId) { Stack() }
+                  redoStack.push(redoInfo)
+                  
+                  sender.sendMessage(plugin.mm.deserialize("<green>↩️ Undo! (${lastAction.size} blocks restored)</green>"))
                   return true
               }
           }
           EOF
 
-          # RedoCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/RedoCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -654,30 +858,34 @@ jobs:
 
           class RedoCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
+                      return true
+                  }
                   
-                  val history: Stack<MutableMap<Location, BlockData>>? = plugin.redoHistory[sender.uniqueId]
+                  val history = plugin.redoHistory[sender.uniqueId]
                   if (history == null || history.isEmpty()) {
                       sender.sendMessage(plugin.mm.deserialize("<red>Nothing to redo!</red>"))
                       return true
                   }
                   
-                  val lastRedo: MutableMap<Location, BlockData> = history.pop()
-                  val undoInfo: MutableMap<Location, BlockData> = mutableMapOf()
+                  val lastRedo = history.pop()
+                  val undoInfo = HashMap<Location, BlockData>()
                   
-                  for ((loc: Location, blockData: BlockData) in lastRedo) {
+                  for ((loc, blockData) in lastRedo) {
                       undoInfo[loc.clone()] = loc.block.blockData
                       loc.block.blockData = blockData
                   }
                   
-                  plugin.undoHistory.getOrPut(sender.uniqueId) { Stack() }.push(undoInfo)
-                  sender.sendMessage(plugin.mm.deserialize("<green>↪️ Redo! (${lastRedo.size} blocks)</green>"))
+                  val undoStack = plugin.undoHistory.getOrPut(sender.uniqueId) { Stack() }
+                  undoStack.push(undoInfo)
+                  
+                  sender.sendMessage(plugin.mm.deserialize("<green>↪️ Redo! (${lastRedo.size} blocks restored)</green>"))
                   return true
               }
           }
           EOF
 
-          # PaletteCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/PaletteCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -691,50 +899,73 @@ jobs:
 
           class PaletteCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  if (args.isEmpty()) {
-                      sender.sendMessage(plugin.mm.deserialize("<gold>🎨 /palette save/load/list/delete <name></gold>"))
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
                       return true
                   }
                   
-                  when (args[0].lowercase()) {
-                      "save" -> {
-                          if (args.size < 2) return true
-                          val mats: MutableList<Material> = mutableListOf()
-                          for (i in 0..8) {
-                              val item: ItemStack? = sender.inventory.getItem(i)
-                              if (item != null && item.type.isBlock) mats.add(item.type)
+                  if (args.isEmpty() || args[0].equals("help", true)) {
+                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>🎨 Palette Manager</bold></gold>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/palette save <name></white><gray> - Save hotbar as palette</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/palette load <name></white><gray> - Load palette to hotbar</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/palette list</white><gray> - List palettes</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/palette delete <name></white><gray> - Delete palette</gray>"))
+                      return true
+                  }
+                  
+                  try {
+                      when (args[0].lowercase()) {
+                          "save" -> {
+                              if (args.size < 2) return true
+                              val mats = ArrayList<Material>()
+                              for (i in 0..8) {
+                                  sender.inventory.getItem(i)?.type?.let { if (it.isBlock) mats.add(it) }
+                              }
+                              if (mats.isEmpty()) {
+                                  sender.sendMessage(plugin.mm.deserialize("<red>No blocks in hotbar!</red>"))
+                                  return true
+                              }
+                              val playerPals = plugin.palettes.getOrPut(sender.uniqueId) { HashMap() }
+                              playerPals[args[1]] = mats
+                              sender.sendMessage(plugin.mm.deserialize("<green>✅ Palette '${args[1]}' saved (${mats.size} blocks)</green>"))
                           }
-                          if (mats.isEmpty()) { sender.sendMessage("No blocks in hotbar!"); return true }
-                          plugin.palettes.getOrPut(sender.uniqueId) { mutableMapOf() }[args[1]] = mats
-                          sender.sendMessage(plugin.mm.deserialize("<green>✅ Palette saved!</green>"))
-                      }
-                      "load" -> {
-                          if (args.size < 2) return true
-                          val mats: MutableList<Material>? = plugin.palettes[sender.uniqueId]?.get(args[1])
-                          if (mats == null) { sender.sendMessage("Not found!"); return true }
-                          mats.forEachIndexed { index: Int, mat: Material ->
-                              if (index < 9) sender.inventory.setItem(index, ItemStack(mat, 1))
+                          "load" -> {
+                              if (args.size < 2) return true
+                              val mats = plugin.palettes[sender.uniqueId]?.get(args[1])
+                              if (mats == null) {
+                                  sender.sendMessage(plugin.mm.deserialize("<red>Palette not found!</red>"))
+                                  return true
+                              }
+                              mats.forEachIndexed { index, mat ->
+                                  if (index < 9) sender.inventory.setItem(index, ItemStack(mat, 1))
+                              }
+                              sender.sendMessage(plugin.mm.deserialize("<green>✅ Palette '${args[1]}' loaded!</green>"))
                           }
-                          sender.sendMessage(plugin.mm.deserialize("<green>✅ Palette loaded!</green>"))
+                          "list" -> {
+                              val pals = plugin.palettes[sender.uniqueId]
+                              if (pals == null || pals.isEmpty()) {
+                                  sender.sendMessage(plugin.mm.deserialize("<gray>No palettes saved.</gray>"))
+                                  return true
+                              }
+                              sender.sendMessage(plugin.mm.deserialize("<gold><bold>🎨 Your Palettes:</bold></gold>"))
+                              pals.forEach { (name, mats) ->
+                                  sender.sendMessage(plugin.mm.deserialize("<white>• $name</white><gray> (${mats.size} blocks)</gray>"))
+                              }
+                          }
+                          "delete" -> {
+                              if (args.size < 2) return true
+                              plugin.palettes[sender.uniqueId]?.remove(args[1])
+                              sender.sendMessage(plugin.mm.deserialize("<green>✅ Palette '${args[1]}' deleted</green>"))
+                          }
                       }
-                      "list" -> {
-                          val pals: MutableMap<String, MutableList<Material>>? = plugin.palettes[sender.uniqueId]
-                          if (pals == null || pals.isEmpty()) { sender.sendMessage("No palettes!"); return true }
-                          pals.keys.forEach { name: String -> sender.sendMessage("• $name") }
-                      }
-                      "delete" -> {
-                          if (args.size < 2) return true
-                          plugin.palettes[sender.uniqueId]?.remove(args[1])
-                          sender.sendMessage(plugin.mm.deserialize("<green>✅ Palette deleted!</green>"))
-                      }
+                  } catch (e: Exception) {
+                      sender.sendMessage(plugin.mm.deserialize("<red>Palette error!</red>"))
                   }
                   return true
               }
           }
           EOF
 
-          # BrushCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/BrushCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -747,30 +978,53 @@ jobs:
 
           class BrushCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  if (args.isEmpty()) {
-                      val size: Int = plugin.brushSize.getOrDefault(sender.uniqueId, 3)
-                      val mat: Material? = plugin.brushMaterial[sender.uniqueId]
-                      sender.sendMessage(plugin.mm.deserialize("<gold>🖌️ Brush: size=$size, material=${mat?.name ?: "hand"}</gold>"))
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
                       return true
                   }
-                  when (args[0].lowercase()) {
-                      "size" -> {
-                          val s: Int = args.getOrNull(1)?.toIntOrNull() ?: 3
-                          plugin.brushSize[sender.uniqueId] = s.coerceIn(1, 20)
-                      }
-                      "material" -> {
-                          val m: Material = Material.getMaterial(args.getOrNull(1)?.uppercase() ?: "STONE") ?: Material.STONE
-                          plugin.brushMaterial[sender.uniqueId] = m
-                      }
+                  
+                  if (args.isEmpty()) {
+                      val size = plugin.brushSize.getOrDefault(sender.uniqueId, 3)
+                      val mat = plugin.brushMaterial[sender.uniqueId]?.name ?: "HAND"
+                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>🖌️ Brush Settings</bold></gold>"))
+                      sender.sendMessage(plugin.mm.deserialize("<gray>Size: <white>$size</white> | Material: <white>$mat</white></gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/brush size <1-20></white><gray> - Set radius</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/brush material <block></white><gray> - Set block</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/brush reset</white><gray> - Reset settings</gray>"))
+                      return true
                   }
-                  sender.sendMessage(plugin.mm.deserialize("<green>✅ Brush updated!</green>"))
+                  
+                  try {
+                      when (args[0].lowercase()) {
+                          "size" -> {
+                              val size = args.getOrNull(1)?.toIntOrNull()?.coerceIn(1, 20) ?: 3
+                              plugin.brushSize[sender.uniqueId] = size
+                              sender.sendMessage(plugin.mm.deserialize("<green>✅ Brush size: $size</green>"))
+                          }
+                          "material" -> {
+                              val matName = args.getOrNull(1)?.uppercase() ?: "STONE"
+                              val mat = Material.getMaterial(matName) ?: Material.STONE
+                              if (!mat.isBlock) {
+                                  sender.sendMessage(plugin.mm.deserialize("<red>Must be a block!</red>"))
+                                  return true
+                              }
+                              plugin.brushMaterial[sender.uniqueId] = mat
+                              sender.sendMessage(plugin.mm.deserialize("<green>✅ Brush material: ${mat.name}</green>"))
+                          }
+                          "reset" -> {
+                              plugin.brushSize.remove(sender.uniqueId)
+                              plugin.brushMaterial.remove(sender.uniqueId)
+                              sender.sendMessage(plugin.mm.deserialize("<green>✅ Brush reset!</green>"))
+                          }
+                      }
+                  } catch (e: Exception) {
+                      sender.sendMessage(plugin.mm.deserialize("<red>Brush error!</red>"))
+                  }
                   return true
               }
           }
           EOF
 
-          # GridCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/GridCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -782,19 +1036,34 @@ jobs:
 
           class GridCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  if (args.isEmpty()) {
-                      val on: Boolean = plugin.gridToggled.getOrDefault(sender.uniqueId, false)
-                      val snap: Boolean = plugin.snapGrid.getOrDefault(sender.uniqueId, false)
-                      val size: Int = plugin.gridSize.getOrDefault(sender.uniqueId, 16)
-                      sender.sendMessage(plugin.mm.deserialize("<gold>📐 Grid: on=$on, snap=$snap, size=$size</gold>"))
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
                       return true
                   }
+                  
+                  if (args.isEmpty()) {
+                      val on = plugin.gridToggled.getOrDefault(sender.uniqueId, false)
+                      val snap = plugin.snapGrid.getOrDefault(sender.uniqueId, false)
+                      val size = plugin.gridSize.getOrDefault(sender.uniqueId, 16)
+                      sender.sendMessage(plugin.mm.deserialize("<gold><bold>📐 Grid System</bold></gold>"))
+                      sender.sendMessage(plugin.mm.deserialize("<gray>Visible: <white>$on</white> | Snap: <white>$snap</white> | Size: <white>$size</white></gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/grid on</white><gray> - Show grid</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/grid off</white><gray> - Hide grid</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/grid snap</white><gray> - Toggle snap</gray>"))
+                      sender.sendMessage(plugin.mm.deserialize("<white>/grid size <4/8/16/32/64></white><gray> - Grid size</gray>"))
+                      return true
+                  }
+                  
                   when (args[0].lowercase()) {
                       "on" -> plugin.gridToggled[sender.uniqueId] = true
                       "off" -> plugin.gridToggled[sender.uniqueId] = false
                       "snap" -> plugin.snapGrid[sender.uniqueId] = !plugin.snapGrid.getOrDefault(sender.uniqueId, false)
-                      "size" -> plugin.gridSize[sender.uniqueId] = args.getOrNull(1)?.toIntOrNull()?.coerceIn(4, 64) ?: 16
+                      "size" -> {
+                          val size = args.getOrNull(1)?.toIntOrNull()?.coerceIn(4, 64) ?: 16
+                          plugin.gridSize[sender.uniqueId] = size
+                          sender.sendMessage(plugin.mm.deserialize("<green>✅ Grid size: $size</green>"))
+                          return true
+                      }
                   }
                   sender.sendMessage(plugin.mm.deserialize("<green>✅ Grid updated!</green>"))
                   return true
@@ -802,7 +1071,6 @@ jobs:
           }
           EOF
 
-          # MeasureCommand
           cat > src/main/kotlin/com/mamad396/builderessentials/commands/MeasureCommand.kt << 'EOF'
           package com.mamad396.builderessentials.commands
 
@@ -816,21 +1084,31 @@ jobs:
 
           class MeasureCommand(private val plugin: BuilderEssentials) : CommandExecutor {
               override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
-                  if (sender !is Player) { sender.sendMessage("Player only!"); return true }
-                  val compass: ItemStack = ItemStack(Material.COMPASS)
+                  if (sender !is Player) {
+                      sender.sendMessage("Player only!")
+                      return true
+                  }
+                  
+                  val compass = ItemStack(Material.COMPASS)
                   val meta = compass.itemMeta
-                  meta.displayName(plugin.mm.deserialize("<gold>📏 Measure Tool</gold>"))
+                  meta.displayName(plugin.mm.deserialize("<gold><bold>📏 Measure Tool</bold></gold>"))
+                  meta.lore(listOf(
+                      plugin.mm.deserialize("<gray>Left click: Set start point</gray>"),
+                      plugin.mm.deserialize("<gray>Right click: Measure to cursor</gray>"),
+                      plugin.mm.deserialize("<yellow>Shows distance & dimensions!</yellow>")
+                  ))
                   compass.itemMeta = meta
+                  
                   sender.inventory.addItem(compass)
-                  sender.sendMessage(plugin.mm.deserialize("<green>✅ Measure tool added!</green>"))
+                  sender.sendMessage(plugin.mm.deserialize("<green>📏 Measure tool added!</green>"))
+                  sender.sendMessage(plugin.mm.deserialize("<gray>Left click start, Right click to measure</gray>"))
                   return true
               }
           }
           EOF
 
-      - name: Create all listener classes
+      - name: Create listener classes
         run: |
-          # SnowballListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/SnowballListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -845,41 +1123,34 @@ jobs:
           import org.bukkit.event.EventHandler
           import org.bukkit.event.Listener
           import org.bukkit.event.entity.ProjectileHitEvent
-          import org.bukkit.scheduler.BukkitRunnable
-          import java.util.concurrent.ConcurrentHashMap
 
           class SnowballListener(private val plugin: BuilderEssentials) : Listener {
-              private val activeSnowballs: MutableMap<Snowball, Material> = ConcurrentHashMap()
-
+              
               @EventHandler
               fun onHit(event: ProjectileHitEvent) {
                   if (event.entity !is Snowball) return
-                  val snowball: Snowball = event.entity as Snowball
-                  val player: Player = snowball.shooter as? Player ?: return
-                  if (!plugin.config.getBoolean("tools.snowball-filler.enabled", true)) return
-                  
-                  val material: Material = plugin.brushMaterial[player.uniqueId] 
-                      ?: player.inventory.itemInOffHand.type.takeIf { it.isBlock } 
-                      ?: player.inventory.itemInMainHand.type.takeIf { it.isBlock } 
+                  val snowball = event.entity as Snowball
+                  val player = snowball.shooter as? Player ?: return
+                  val material = plugin.brushMaterial[player.uniqueId] 
+                      ?: player.inventory.itemInOffHand.type.takeIf { it.isBlock && it != Material.AIR } 
+                      ?: player.inventory.itemInMainHand.type.takeIf { it.isBlock && it != Material.AIR } 
                       ?: Material.STONE
                   
-                  activeSnowballs[snowball] = material
-                  
-                  val startLoc: Location = player.eyeLocation.clone()
-                  val endLoc: Location = snowball.location.clone()
+                  val startLoc = player.eyeLocation.clone()
+                  val endLoc = snowball.location.clone()
                   val direction = endLoc.toVector().subtract(startLoc.toVector()).normalize()
-                  val distance: Double = startLoc.distance(endLoc)
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val distance = startLoc.distance(endLoc)
+                  val undoMap = HashMap<Location, BlockData>()
                   
-                  var current: Location = startLoc.clone()
-                  for (i in 0 until distance.toInt()) {
+                  var current = startLoc.clone()
+                  for (i in 0 until distance.toInt().coerceAtMost(50)) {
                       current = current.add(direction)
                       val block = current.block
-                      if (block.type == Material.AIR || block.type == Material.WATER || block.type == Material.LAVA) {
+                      if (block.type.isEmpty || block.type == Material.WATER || block.type == Material.LAVA) {
                           undoMap[current.clone()] = block.blockData
                           block.type = material
                           current.world?.spawnParticle(Particle.SNOWFLAKE, current.clone().add(0.5, 0.5, 0.5), 3, 0.2, 0.2, 0.2, 0.0)
-                          current.world?.playSound(current, Sound.BLOCK_STONE_PLACE, 0.1f, 1.5f)
+                          current.world?.playSound(current, Sound.BLOCK_SNOW_PLACE, 0.3f, 1.5f)
                       }
                   }
                   
@@ -889,7 +1160,6 @@ jobs:
           }
           EOF
 
-          # EggListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/EggListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -907,12 +1177,15 @@ jobs:
               @EventHandler
               fun onHit(event: ProjectileHitEvent) {
                   if (event.entity !is Egg) return
-                  val player: Player = event.entity.shooter as? Player ?: return
-                  val material: Material = plugin.brushMaterial[player.uniqueId] ?: Material.STONE
-                  val hitLoc: Location = event.entity.location.clone()
+                  val player = event.entity.shooter as? Player ?: return
+                  val material = plugin.brushMaterial[player.uniqueId] 
+                      ?: player.inventory.itemInMainHand.type.takeIf { it.isBlock && it != Material.AIR } 
+                      ?: Material.STONE
+                  val hitLoc = event.entity.location.clone()
                   val block = hitLoc.block
-                  if (block.type == Material.AIR) {
-                      val undoMap: MutableMap<Location, BlockData> = mutableMapOf(hitLoc.clone() to block.blockData)
+                  if (block.type.isEmpty) {
+                      val undoMap = HashMap<Location, BlockData>()
+                      undoMap[hitLoc.clone()] = block.blockData
                       block.type = material
                       plugin.addUndo(player.uniqueId, undoMap)
                   }
@@ -921,7 +1194,6 @@ jobs:
           }
           EOF
 
-          # ArrowListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/ArrowListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -939,14 +1211,17 @@ jobs:
               @EventHandler
               fun onHit(event: ProjectileHitEvent) {
                   if (event.entity !is Arrow) return
-                  val arrow: Arrow = event.entity as Arrow
-                  val player: Player = arrow.shooter as? Player ?: return
-                  val material: Material = plugin.brushMaterial[player.uniqueId] ?: Material.STONE
+                  val arrow = event.entity as Arrow
+                  val player = arrow.shooter as? Player ?: return
+                  val material = plugin.brushMaterial[player.uniqueId] 
+                      ?: player.inventory.itemInMainHand.type.takeIf { it.isBlock && it != Material.AIR } 
+                      ?: Material.STONE
                   val hitBlock = event.hitBlock ?: return
                   val face = event.hitBlockFace ?: return
-                  val placeLoc: Location = hitBlock.getRelative(face).location.clone()
+                  val placeLoc = hitBlock.getRelative(face).location.clone()
                   
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf(placeLoc.clone() to placeLoc.block.blockData)
+                  val undoMap = HashMap<Location, BlockData>()
+                  undoMap[placeLoc.clone()] = placeLoc.block.blockData
                   placeLoc.block.type = material
                   plugin.addUndo(player.uniqueId, undoMap)
                   arrow.remove()
@@ -954,7 +1229,6 @@ jobs:
           }
           EOF
 
-          # PearlListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/PearlListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -971,15 +1245,15 @@ jobs:
               fun onTeleport(event: PlayerTeleportEvent) {
                   if (event.cause != PlayerTeleportEvent.TeleportCause.ENDER_PEARL) return
                   val player = event.player
-                  val material: Material = plugin.brushMaterial[player.uniqueId] ?: Material.STONE
-                  val radius: Int = plugin.config.getInt("tools.ender-pearl-fill.radius", 3)
-                  val center: Location = event.to.clone()
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val material = plugin.brushMaterial[player.uniqueId] ?: Material.STONE
+                  val radius = plugin.config.getInt("tools.ender-pearl-fill.radius", 3)
+                  val center = event.to.clone()
+                  val undoMap = HashMap<Location, BlockData>()
                   
                   for (x in -radius..radius) for (y in 0..2) for (z in -radius..radius) {
                       if (x * x + z * z <= radius * radius) {
-                          val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
-                          if (loc.block.type == Material.AIR) {
+                          val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                          if (loc.block.type.isEmpty) {
                               undoMap[loc.clone()] = loc.block.blockData
                               loc.block.type = material
                           }
@@ -990,7 +1264,6 @@ jobs:
           }
           EOF
 
-          # TridentListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/TridentListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -1008,19 +1281,21 @@ jobs:
               @EventHandler
               fun onHit(event: ProjectileHitEvent) {
                   if (event.entity !is Trident) return
-                  val trident: Trident = event.entity as Trident
-                  val player: Player = trident.shooter as? Player ?: return
-                  val material: Material = plugin.brushMaterial[player.uniqueId] ?: Material.STONE
-                  val start: Location = player.eyeLocation.clone()
-                  val end: Location = trident.location.clone()
+                  val trident = event.entity as Trident
+                  val player = trident.shooter as? Player ?: return
+                  val material = plugin.brushMaterial[player.uniqueId] 
+                      ?: player.inventory.itemInMainHand.type.takeIf { it.isBlock && it != Material.AIR } 
+                      ?: Material.STONE
+                  val start = player.eyeLocation.clone()
+                  val end = trident.location.clone()
                   val direction = end.toVector().subtract(start.toVector()).normalize()
-                  val distance: Double = start.distance(end)
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val distance = start.distance(end)
+                  val undoMap = HashMap<Location, BlockData>()
                   
-                  var current: Location = start.clone()
-                  for (i in 0 until distance.toInt()) {
+                  var current = start.clone()
+                  for (i in 0 until distance.toInt().coerceAtMost(100)) {
                       current = current.add(direction)
-                      if (current.block.type == Material.AIR) {
+                      if (current.block.type.isEmpty) {
                           undoMap[current.clone()] = current.block.blockData
                           current.block.type = material
                       }
@@ -1031,7 +1306,6 @@ jobs:
           }
           EOF
 
-          # WandListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/WandListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -1053,12 +1327,23 @@ jobs:
                   when (event.action) {
                       Action.LEFT_CLICK_BLOCK -> {
                           plugin.wandPos1[player.uniqueId] = clickedBlock.location.clone()
-                          player.sendMessage(plugin.mm.deserialize("<green>📍 Pos1 set!</green>"))
+                          player.sendMessage(plugin.mm.deserialize(
+                              "<green>📍 Pos1: ${clickedBlock.x}, ${clickedBlock.y}, ${clickedBlock.z}</green>"
+                          ))
                           event.isCancelled = true
                       }
                       Action.RIGHT_CLICK_BLOCK -> {
                           plugin.wandPos2[player.uniqueId] = clickedBlock.location.clone()
-                          player.sendMessage(plugin.mm.deserialize("<green>📍 Pos2 set!</green>"))
+                          player.sendMessage(plugin.mm.deserialize(
+                              "<green>📍 Pos2: ${clickedBlock.x}, ${clickedBlock.y}, ${clickedBlock.z}</green>"
+                          ))
+                          val pos1 = plugin.wandPos1[player.uniqueId]
+                          if (pos1 != null) {
+                              val volume = (Math.abs(clickedBlock.x - pos1.x) + 1).toInt() * 
+                                          (Math.abs(clickedBlock.y - pos1.y) + 1).toInt() * 
+                                          (Math.abs(clickedBlock.z - pos1.z) + 1).toInt()
+                              player.sendMessage(plugin.mm.deserialize("<aqua>📦 Volume: $volume blocks</aqua>"))
+                          }
                           event.isCancelled = true
                       }
                       else -> {}
@@ -1067,7 +1352,6 @@ jobs:
           }
           EOF
 
-          # PaintListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/PaintListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -1088,16 +1372,20 @@ jobs:
                   if (event.action != Action.RIGHT_CLICK_BLOCK && event.action != Action.RIGHT_CLICK_AIR) return
                   
                   val player = event.player
-                  val center: Location = event.clickedBlock?.location ?: player.location
-                  val radius: Int = plugin.brushSize.getOrDefault(player.uniqueId, 3)
-                  val material: Material = plugin.brushMaterial[player.uniqueId] ?: Material.STONE
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val center = event.clickedBlock?.location ?: player.location
+                  val radius = plugin.brushSize.getOrDefault(player.uniqueId, 3)
+                  val material = plugin.brushMaterial[player.uniqueId] 
+                      ?: player.inventory.itemInMainHand.type.takeIf { it.isBlock && it != Material.AIR } 
+                      ?: Material.STONE
+                  val undoMap = HashMap<Location, BlockData>()
                   
                   for (x in -radius..radius) for (y in -radius..radius) for (z in -radius..radius) {
                       if (x * x + y * y + z * z <= radius * radius) {
-                          val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
-                          undoMap[loc.clone()] = loc.block.blockData
-                          loc.block.type = material
+                          val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                          if (loc.block.type != material && loc.block.type != Material.BEDROCK) {
+                              undoMap[loc.clone()] = loc.block.blockData
+                              loc.block.type = material
+                          }
                       }
                   }
                   if (undoMap.isNotEmpty()) plugin.addUndo(player.uniqueId, undoMap)
@@ -1105,7 +1393,6 @@ jobs:
           }
           EOF
 
-          # FastBreakListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/FastBreakListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -1122,14 +1409,15 @@ jobs:
               @EventHandler
               fun onBreak(event: BlockBreakEvent) {
                   val player = event.player
-                  if (!plugin.config.getBoolean("tools.fast-break.enabled", true)) return
                   if (player.gameMode != GameMode.CREATIVE) return
                   
                   val block = event.block
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf(block.location.clone() to block.blockData)
+                  val undoMap = HashMap<Location, BlockData>()
+                  undoMap[block.location.clone()] = block.blockData
                   
                   for (x in -1..1) for (y in -1..1) for (z in -1..1) {
-                      val loc: Location = block.location.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                      if (x == 0 && y == 0 && z == 0) continue
+                      val loc = block.location.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
                       if (loc.block.type != Material.AIR && loc.block.type != Material.BEDROCK) {
                           undoMap[loc.clone()] = loc.block.blockData
                           loc.block.type = Material.AIR
@@ -1140,7 +1428,6 @@ jobs:
           }
           EOF
 
-          # VeinMinerListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/VeinMinerListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -1156,28 +1443,31 @@ jobs:
           class VeinMinerListener(private val plugin: BuilderEssentials) : Listener {
               @EventHandler
               fun onBreak(event: BlockBreakEvent) {
-                  if (!plugin.config.getBoolean("tools.vein-miner.enabled", true)) return
                   val player = event.player
                   if (!player.isSneaking) return
                   
                   val block = event.block
-                  val targetType: Material = block.type
-                  val maxVein: Int = plugin.config.getInt("tools.vein-miner.max-vein", 64)
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
-                  val visited: MutableSet<Location> = mutableSetOf()
-                  val queue: LinkedList<Location> = LinkedList()
+                  val targetType = block.type
+                  if (targetType == Material.AIR || targetType == Material.BEDROCK) return
+                  
+                  val maxVein = plugin.config.getInt("tools.vein-miner.max-vein", 64)
+                  val undoMap = HashMap<Location, BlockData>()
+                  val visited = HashSet<Location>()
+                  val queue = LinkedList<Location>()
                   queue.add(block.location)
                   
                   while (queue.isNotEmpty() && undoMap.size < maxVein) {
-                      val current: Location = queue.poll()
+                      val current = queue.poll()
                       if (current in visited) continue
                       visited.add(current)
+                      
                       if (current.block.type == targetType) {
                           undoMap[current.clone()] = current.block.blockData
                           current.block.type = Material.AIR
+                          
                           for (dx in -1..1) for (dy in -1..1) for (dz in -1..1) {
                               if (dx == 0 && dy == 0 && dz == 0) continue
-                              val next: Location = current.clone().add(dx.toDouble(), dy.toDouble(), dz.toDouble())
+                              val next = current.clone().add(dx.toDouble(), dy.toDouble(), dz.toDouble())
                               if (next.block.type == targetType && next !in visited) queue.add(next)
                           }
                       }
@@ -1187,7 +1477,6 @@ jobs:
           }
           EOF
 
-          # MeasureListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/MeasureListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -1200,7 +1489,7 @@ jobs:
           import org.bukkit.event.player.PlayerInteractEvent
 
           class MeasureListener(private val plugin: BuilderEssentials) : Listener {
-              private val pos1: MutableMap<java.util.UUID, Location> = mutableMapOf()
+              private val pos1 = HashMap<java.util.UUID, Location>()
               
               @EventHandler
               fun onInteract(event: PlayerInteractEvent) {
@@ -1210,20 +1499,27 @@ jobs:
                   
                   when (event.action) {
                       Action.LEFT_CLICK_BLOCK, Action.LEFT_CLICK_AIR -> {
-                          val loc: Location = event.clickedBlock?.location ?: player.location
+                          val loc = event.clickedBlock?.location ?: player.location
                           pos1[player.uniqueId] = loc.clone()
-                          player.sendMessage(plugin.mm.deserialize("<green>📏 Start: ${loc.blockX}, ${loc.blockY}, ${loc.blockZ}</green>"))
+                          player.sendMessage(plugin.mm.deserialize(
+                              "<green>📏 Start: ${loc.blockX}, ${loc.blockY}, ${loc.blockZ}</green>"
+                          ))
                           event.isCancelled = true
                       }
                       Action.RIGHT_CLICK_BLOCK, Action.RIGHT_CLICK_AIR -> {
-                          val start: Location = pos1[player.uniqueId] ?: return
-                          val end: Location = event.clickedBlock?.location ?: player.location
-                          val dist: Double = start.distance(end)
-                          val dx: Int = Math.abs(end.blockX - start.blockX)
-                          val dy: Int = Math.abs(end.blockY - start.blockY)
-                          val dz: Int = Math.abs(end.blockZ - start.blockZ)
-                          player.sendMessage(plugin.mm.deserialize("<gold>📏 Distance: ${"%.1f".format(dist)} blocks</gold>"))
-                          player.sendMessage(plugin.mm.deserialize("<gray>X: $dx, Y: $dy, Z: $dz | Volume: ${dx * dy * dz}</gray>"))
+                          val start = pos1[player.uniqueId] ?: return
+                          val end = event.clickedBlock?.location ?: player.location
+                          val dist = start.distance(end)
+                          val dx = Math.abs(end.blockX - start.blockX)
+                          val dy = Math.abs(end.blockY - start.blockY)
+                          val dz = Math.abs(end.blockZ - start.blockZ)
+                          
+                          player.sendMessage(plugin.mm.deserialize(
+                              "<gold>📏 ${"%.1f".format(dist)} blocks</gold>"
+                          ))
+                          player.sendMessage(plugin.mm.deserialize(
+                              "<gray>X: $dx | Y: $dy | Z: $dz | Vol: ${dx * dy * dz}</gray>"
+                          ))
                           event.isCancelled = true
                       }
                       else -> {}
@@ -1232,7 +1528,6 @@ jobs:
           }
           EOF
 
-          # GridListener
           cat > src/main/kotlin/com/mamad396/builderessentials/listeners/GridListener.kt << 'EOF'
           package com.mamad396.builderessentials.listeners
 
@@ -1244,18 +1539,19 @@ jobs:
           import org.bukkit.scheduler.BukkitRunnable
 
           class GridListener(private val plugin: BuilderEssentials) : Listener {
-              private val activeGrids: MutableMap<java.util.UUID, BukkitRunnable> = mutableMapOf()
+              private val activeGrids = HashMap<java.util.UUID, BukkitRunnable>()
               
               @EventHandler
               fun onMove(event: PlayerMoveEvent) {
                   val player = event.player
-                  val hasGrid: Boolean = plugin.gridToggled.getOrDefault(player.uniqueId, false)
-                  val isSnapping: Boolean = plugin.snapGrid.getOrDefault(player.uniqueId, false)
+                  val hasGrid = plugin.gridToggled.getOrDefault(player.uniqueId, false)
+                  val isSnapping = plugin.snapGrid.getOrDefault(player.uniqueId, false)
                   
-                  if (isSnapping && (event.from.blockX != event.to?.blockX ?: event.from.blockX || event.from.blockZ != event.to?.blockZ ?: event.from.blockZ)) {
-                      val gridSize: Int = plugin.gridSize.getOrDefault(player.uniqueId, 16)
-                      val snappedX: Int = (player.location.blockX / gridSize) * gridSize + gridSize / 2
-                      val snappedZ: Int = (player.location.blockZ / gridSize) * gridSize + gridSize / 2
+                  if (isSnapping && (event.from.blockX != event.to?.blockX ?: event.from.blockX || 
+                                     event.from.blockZ != event.to?.blockZ ?: event.from.blockZ)) {
+                      val gridSize = plugin.gridSize.getOrDefault(player.uniqueId, 16)
+                      val snappedX = (player.location.blockX / gridSize) * gridSize + gridSize / 2
+                      val snappedZ = (player.location.blockZ / gridSize) * gridSize + gridSize / 2
                       val newLoc = player.location.clone()
                       newLoc.x = snappedX + 0.5
                       newLoc.z = snappedZ + 0.5
@@ -1267,15 +1563,13 @@ jobs:
                       val task = object : BukkitRunnable() {
                           override fun run() {
                               if (!player.isOnline) { cancel(); return }
-                              val gridSize: Int = plugin.gridSize.getOrDefault(player.uniqueId, 16)
-                              val centerX: Int = (player.location.blockX / gridSize) * gridSize
-                              val centerZ: Int = (player.location.blockZ / gridSize) * gridSize
+                              val gridSize = plugin.gridSize.getOrDefault(player.uniqueId, 16)
+                              val centerX = (player.location.blockX / gridSize) * gridSize
+                              val centerZ = (player.location.blockZ / gridSize) * gridSize
                               for (x in -2..2) for (z in -2..2) {
-                                  player.world.spawnParticle(Particle.END_ROD, 
-                                      (centerX + x * gridSize + gridSize / 2 + 0.5).toDouble(),
-                                      player.location.y,
-                                      (centerZ + z * gridSize + gridSize / 2 + 0.5).toDouble(),
-                                      1, 0.0, 0.0, 0.0, 0.0)
+                                  val px = (centerX + x * gridSize + gridSize / 2 + 0.5).toDouble()
+                                  val pz = (centerZ + z * gridSize + gridSize / 2 + 0.5).toDouble()
+                                  player.world.spawnParticle(Particle.END_ROD, px, player.location.y, pz, 1, 0.0, 0.0, 0.0, 0.0)
                               }
                           }
                       }
@@ -1304,55 +1598,55 @@ jobs:
           class ShapeGenerator(private val plugin: BuilderEssentials) {
               
               fun generateCircle(player: Player, center: Location, radius: Int, material: Material, hollow: Boolean) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val undoMap = HashMap<Location, BlockData>()
                   for (x in -radius..radius) for (z in -radius..radius) {
-                      val d: Double = sqrt((x * x + z * z).toDouble())
+                      val d = sqrt((x * x + z * z).toDouble())
                       if (d <= radius + 0.5 && (!hollow || d >= radius - 0.5)) {
-                          val loc: Location = center.clone().add(x.toDouble(), 0.0, z.toDouble())
+                          val loc = center.clone().add(x.toDouble(), 0.0, z.toDouble())
                           undoMap[loc.clone()] = loc.block.blockData
                           loc.block.type = material
                       }
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>⭕ Circle done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>⭕ Circle: ${undoMap.size} blocks</green>"))
               }
               
               fun generateSphere(player: Player, center: Location, radius: Int, material: Material, hollow: Boolean) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val undoMap = HashMap<Location, BlockData>()
                   for (x in -radius..radius) for (y in -radius..radius) for (z in -radius..radius) {
-                      val d: Double = sqrt((x * x + y * y + z * z).toDouble())
+                      val d = sqrt((x * x + y * y + z * z).toDouble())
                       if (d <= radius + 0.5 && (!hollow || d >= radius - 0.5)) {
-                          val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                          val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
                           undoMap[loc.clone()] = loc.block.blockData
                           loc.block.type = material
                       }
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>🔵 Sphere done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>🔵 Sphere: ${undoMap.size} blocks</green>"))
               }
               
               fun generateCube(player: Player, center: Location, size: Int, material: Material, hollow: Boolean) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
-                  val half: Int = size / 2
+                  val undoMap = HashMap<Location, BlockData>()
+                  val half = size / 2
                   for (x in -half..half) for (y in -half..half) for (z in -half..half) {
                       if (!hollow || x == -half || x == half || y == -half || y == half || z == -half || z == half) {
-                          val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                          val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
                           undoMap[loc.clone()] = loc.block.blockData
                           loc.block.type = material
                       }
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>📦 Cube done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>📦 Cube: ${undoMap.size} blocks</green>"))
               }
               
               fun generateCylinder(player: Player, center: Location, radius: Int, height: Int, material: Material, hollow: Boolean) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val undoMap = HashMap<Location, BlockData>()
                   for (x in -radius..radius) for (z in -radius..radius) {
-                      val d: Double = sqrt((x * x + z * z).toDouble())
+                      val d = sqrt((x * x + z * z).toDouble())
                       if (d <= radius + 0.5) {
                           for (y in 0 until height) {
                               if (!hollow || d >= radius - 0.5 || y == 0 || y == height - 1) {
-                                  val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                                  val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
                                   undoMap[loc.clone()] = loc.block.blockData
                                   loc.block.type = material
                               }
@@ -1360,93 +1654,94 @@ jobs:
                       }
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>🫙 Cylinder done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>🫙 Cylinder: ${undoMap.size} blocks</green>"))
               }
               
               fun generatePyramid(player: Player, center: Location, size: Int, material: Material) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val undoMap = HashMap<Location, BlockData>()
                   for (y in 0 until size) {
-                      val s: Int = size - y
+                      val s = size - y
                       for (x in -s/2..s/2) for (z in -s/2..s/2) {
-                          val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                          val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
                           undoMap[loc.clone()] = loc.block.blockData
                           loc.block.type = material
                       }
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>🔺 Pyramid done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>🔺 Pyramid: ${undoMap.size} blocks</green>"))
               }
               
               fun generateCone(player: Player, center: Location, radius: Int, height: Int, material: Material) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val undoMap = HashMap<Location, BlockData>()
                   for (y in 0 until height) {
-                      val r: Int = (radius * (height - y) / height.toDouble()).toInt()
+                      val r = (radius * (height - y) / height.toDouble()).toInt()
                       for (x in -r..r) for (z in -r..r) {
                           if (sqrt((x * x + z * z).toDouble()) <= r + 0.5) {
-                              val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                              val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
                               undoMap[loc.clone()] = loc.block.blockData
                               loc.block.type = material
                           }
                       }
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>📐 Cone done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>📐 Cone: ${undoMap.size} blocks</green>"))
               }
               
               fun generateDome(player: Player, center: Location, radius: Int, material: Material) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val undoMap = HashMap<Location, BlockData>()
                   for (x in -radius..radius) for (y in 0..radius) for (z in -radius..radius) {
-                      val d: Double = sqrt((x * x + y * y + z * z).toDouble())
+                      val d = sqrt((x * x + y * y + z * z).toDouble())
                       if (d <= radius + 0.5 && d >= radius - 0.5) {
-                          val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                          val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
                           undoMap[loc.clone()] = loc.block.blockData
                           loc.block.type = material
                       }
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>🏛️ Dome done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>🏛️ Dome: ${undoMap.size} blocks</green>"))
               }
               
               fun generateTorus(player: Player, center: Location, radius: Int, material: Material) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
-                  val mr: Int = plugin.config.getInt("tools.torus.minor-radius", 3)
+                  val undoMap = HashMap<Location, BlockData>()
+                  val mr = plugin.config.getInt("tools.torus.minor-radius", 3)
                   for (x in -radius-mr..radius+mr) for (y in -radius-mr..radius+mr) for (z in -radius-mr..radius+mr) {
-                      val d1: Double = sqrt((x * x + z * z).toDouble()) - radius
-                      val d: Double = sqrt((d1 * d1 + y * y).toDouble())
+                      val d1 = sqrt((x * x + z * z).toDouble()) - radius
+                      val d = sqrt((d1 * d1 + y * y).toDouble())
                       if (d <= mr + 0.3) {
-                          val loc: Location = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
+                          val loc = center.clone().add(x.toDouble(), y.toDouble(), z.toDouble())
                           undoMap[loc.clone()] = loc.block.blockData
                           loc.block.type = material
                       }
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>🍩 Torus done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>🍩 Torus: ${undoMap.size} blocks</green>"))
               }
               
               fun generateSpiral(player: Player, center: Location, radius: Int, height: Int, material: Material) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
-                  for (step in 0..height * 10) {
-                      val angle: Double = step * 0.5
-                      val y: Double = step.toDouble() / (height * 10) * height
-                      val x: Int = (cos(angle) * radius).toInt()
-                      val z: Int = (sin(angle) * radius).toInt()
-                      val loc: Location = center.clone().add(x.toDouble(), y, z.toDouble())
+                  val undoMap = HashMap<Location, BlockData>()
+                  val steps = height * 10
+                  for (step in 0..steps) {
+                      val angle = step * 0.5
+                      val y = step.toDouble() / steps * height
+                      val x = (cos(angle) * radius).toInt()
+                      val z = (sin(angle) * radius).toInt()
+                      val loc = center.clone().add(x.toDouble(), y, z.toDouble())
                       undoMap[loc.clone()] = loc.block.blockData
                       loc.block.type = material
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>🌀 Spiral done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>🌀 Spiral: ${undoMap.size} blocks</green>"))
               }
               
               fun generateStaircase(player: Player, center: Location, width: Int, height: Int, material: Material) {
-                  val undoMap: MutableMap<Location, BlockData> = mutableMapOf()
+                  val undoMap = HashMap<Location, BlockData>()
                   for (step in 0 until height) for (w in 0 until width) for (d in 0..step) {
-                      val loc: Location = center.clone().add(w.toDouble(), step.toDouble(), d.toDouble())
+                      val loc = center.clone().add(w.toDouble(), step.toDouble(), d.toDouble())
                       undoMap[loc.clone()] = loc.block.blockData
                       loc.block.type = material
                   }
                   plugin.addUndo(player.uniqueId, undoMap)
-                  player.sendMessage(plugin.mm.deserialize("<green>🪜 Staircase done!</green>"))
+                  player.sendMessage(plugin.mm.deserialize("<green>🪜 Staircase: ${undoMap.size} blocks</green>"))
               }
           }
           EOF
@@ -1461,21 +1756,34 @@ jobs:
               <modelVersion>4.0.0</modelVersion>
               <groupId>com.mamad396</groupId>
               <artifactId>BuilderEssentials</artifactId>
-              <version>1.0</version>
+              <version>1.0.0</version>
               <packaging>jar</packaging>
               
               <properties>
                   <kotlin.version>1.9.22</kotlin.version>
                   <java.version>21</java.version>
+                  <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
               </properties>
               
               <repositories>
-                  <repository><id>papermc</id><url>https://repo.papermc.io/repository/maven-public/</url></repository>
+                  <repository>
+                      <id>papermc</id>
+                      <url>https://repo.papermc.io/repository/maven-public/</url>
+                  </repository>
               </repositories>
               
               <dependencies>
-                  <dependency><groupId>io.papermc.paper</groupId><artifactId>paper-api</artifactId><version>1.21-R0.1-SNAPSHOT</version><scope>provided</scope></dependency>
-                  <dependency><groupId>org.jetbrains.kotlin</groupId><artifactId>kotlin-stdlib</artifactId><version>${kotlin.version}</version></dependency>
+                  <dependency>
+                      <groupId>io.papermc.paper</groupId>
+                      <artifactId>paper-api</artifactId>
+                      <version>1.21-R0.1-SNAPSHOT</version>
+                      <scope>provided</scope>
+                  </dependency>
+                  <dependency>
+                      <groupId>org.jetbrains.kotlin</groupId>
+                      <artifactId>kotlin-stdlib</artifactId>
+                      <version>${kotlin.version}</version>
+                  </dependency>
               </dependencies>
               
               <build>
@@ -1485,36 +1793,55 @@ jobs:
                           <groupId>org.jetbrains.kotlin</groupId>
                           <artifactId>kotlin-maven-plugin</artifactId>
                           <version>${kotlin.version}</version>
-                          <executions><execution><id>compile</id><phase>compile</phase><goals><goal>compile</goal></goals></execution></executions>
-                          <configuration><jvmTarget>21</jvmTarget></configuration>
+                          <executions>
+                              <execution>
+                                  <id>compile</id>
+                                  <phase>compile</phase>
+                                  <goals>
+                                      <goal>compile</goal>
+                                  </goals>
+                              </execution>
+                          </executions>
+                          <configuration>
+                              <jvmTarget>21</jvmTarget>
+                          </configuration>
                       </plugin>
                       <plugin>
                           <groupId>org.apache.maven.plugins</groupId>
                           <artifactId>maven-shade-plugin</artifactId>
                           <version>3.5.1</version>
-                          <executions><execution><phase>package</phase><goals><goal>shade</goal></goals></execution></executions>
+                          <executions>
+                              <execution>
+                                  <phase>package</phase>
+                                  <goals>
+                                      <goal>shade</goal>
+                                  </goals>
+                              </execution>
+                          </executions>
                       </plugin>
                   </plugins>
               </build>
           </project>
           EOF
 
-      - name: Build
+      - name: Build with Maven
         run: mvn clean package -B -q
 
-      - name: Copy to releases
-        run: cp target/BuilderEssentials-1.0.jar releases/
+      - name: Copy JAR to releases
+        run: |
+          mkdir -p releases
+          cp target/BuilderEssentials-1.0.0.jar releases/
 
-      - name: Commit
+      - name: Setup Git and force push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add releases/BuilderEssentials-1.0.jar
-          git commit -m "🏗️ BuilderEssentials v1.0" || echo "No changes"
-          git push
+          git add releases/BuilderEssentials-1.0.0.jar
+          git commit -m "🏗️ BuilderEssentials v1.0.0 - Complete Build" || echo "No changes to commit"
+          git push origin main --force
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BuilderEssentials-v1.0
-          path: target/BuilderEssentials-1.0.jar
+          name: BuilderEssentials-v1.0.0
+          path: target/BuilderEssentials-1.0.0.jar
