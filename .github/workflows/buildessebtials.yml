@@ -1,6 +1,9 @@
-name: Build BuilderEssentials v2.0
+name: Build BuilderEssentials v3.0
 
-on: [push, workflow_dispatch]
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -31,96 +34,135 @@ jobs:
 
       - name: Create plugin.yml
         run: |
-          cat > src/main/resources/plugin.yml << 'EOF'
+          cat > src/main/resources/plugin.yml << 'PLUGINEOF'
           name: BuilderEssentials
-          version: 2.0.0
+          version: 3.0.0
           main: com.mamad396.builderessentials.BuilderEssentials
           api-version: '1.20'
           author: mamad396
-          description: Ultimate building tools v2.0 - Async, Preview, Rotate, Flip & more
-          softdepend: [FastAsyncWorldEdit, Vault, WorldGuard, GriefPrevention]
+          description: GOD MODE Building Plugin - Better than Essentials
+          softdepend: [FastAsyncWorldEdit, Vault]
           
           commands:
             builder:
               description: Main builder command
-              aliases: [be, buildertools, bt]
+              aliases: [be, buildertools, bt, build]
+            be:
+              description: BuilderEssentials main menu
+              aliases: [bemenu, bessentials]
             wand:
               description: Get selection wand
             fill:
               description: Fill tools menu
-              aliases: [filler, paint]
+              aliases: [filler, paint, spray]
             shapes:
-              description: Shape generator
-              aliases: [gen, generate]
+              description: Shape generator menu
+              aliases: [gen, generate, shape]
             terrain:
               description: Terrain tools
-              aliases: [terra, land]
+              aliases: [terra, land, ground]
             tree:
               description: Tree generator
+              aliases: [treegen, plant]
             schematic:
               description: Schematic manager
-              aliases: [schem, blueprint]
+              aliases: [schem, blueprint, bp]
             undo:
               description: Undo last action
+              aliases: [back, revert]
             redo:
-              description: Redo action
+              description: Redo last undone action
+              aliases: [forward, reapply]
             palette:
               description: Block palette manager
-              aliases: [colors, blocks]
+              aliases: [colors, blocks, swatch]
             brush:
               description: Brush settings
-              aliases: [br]
+              aliases: [br, brushsize, paintbrush]
             grid:
               description: Build grid system
+              aliases: [snap, guide]
             measure:
               description: Measure distance tool
+              aliases: [distance, ruler, tape]
             copy:
-              description: Copy selection
+              description: Copy selection to clipboard
             paste:
               description: Paste clipboard
+            cut:
+              description: Cut selection to clipboard
             rotate:
-              description: Rotate clipboard
+              description: Rotate clipboard (90/180/270)
+              aliases: [rot, turn]
             flip:
-              description: Flip clipboard
+              description: Flip clipboard (x/y/z)
+              aliases: [mirror, reflect]
             stack:
-              description: Stack selection
+              description: Stack clipboard multiple times
+              aliases: [repeat, duplicate, multiply]
             mask:
-              description: Set paste mask
+              description: Set paste mask (only replace specific block)
+              aliases: [filter, replacemode]
             drain:
-              description: Drain liquids
+              description: Drain nearby liquids
+              aliases: [dry, empty, removewater]
             preview:
-              description: Toggle particle preview
-          EOF
+              description: Toggle particle preview mode
+              aliases: [outline, ghost, showpreview]
+            replace:
+              description: Replace blocks in selection
+              aliases: [swap, change, convert]
+            walls:
+              description: Build walls from selection
+              aliases: [wall, fence]
+            hollow:
+              description: Hollow out filled shape
+              aliases: [emptyinside, shell]
+            smooth:
+              description: Smooth terrain
+              aliases: [blend, soften]
+            naturalize:
+              description: Naturalize surface (grass + dirt)
+              aliases: [nature, grassify, natural]
+          PLUGINEOF
 
       - name: Create config.yml
         run: |
-          cat > src/main/resources/config.yml << 'EOF'
-          config-version: 2.0.0
-          prefix: "&8[&6🏗️&8] &7"
+          cat > src/main/resources/config.yml << 'CONFIGEOF'
+          config-version: 3.0.0
+          prefix: "&8&l[&6&l🏗️&8&l] &7"
           
           performance:
             async-processing: true
             batch-size: 500
             max-blocks-per-tick: 1000
             max-undo-history: 50
-            auto-save-interval: 300
+            auto-save-interval-seconds: 300
+            parallel-threads: 4
           
           limits:
             max-blocks-per-action: 100000
             max-radius: 100
-            cooldown-seconds: 1
+            cooldown-ms: 500
             per-player-daily-limit: 500000
           
           database:
             type: sqlite
             auto-save: true
-            save-interval: 300
+            save-interval-seconds: 300
           
           preview:
             enabled: true
             particle: ELECTRIC_SPARK
             density: 0.3
             duration-ticks: 100
+          
+          sounds:
+            success: BLOCK_NOTE_BLOCK_CHIME
+            error: BLOCK_NOTE_BLOCK_BASS
+            complete: ENTITY_PLAYER_LEVELUP
+            undo: BLOCK_NOTE_BLOCK_HAT
+            paint: BLOCK_STONE_PLACE
           
           undo:
             max-history: 50
@@ -131,32 +173,43 @@ jobs:
               enabled: true
               permission: builder.filler.snowball
               max-distance: 50
+              default: true
             egg-filler:
               enabled: true
               permission: builder.filler.egg
+              default: true
             arrow-placer:
               enabled: true
               permission: builder.filler.arrow
+              default: true
             ender-pearl-fill:
               enabled: true
               permission: builder.filler.pearl
               radius: 3
+              default: true
             trident-builder:
               enabled: true
               permission: builder.filler.trident
+              default: true
             selection-wand:
               enabled: true
               permission: builder.wand
+              item: WOODEN_AXE
+              default: true
             paint-wand:
               enabled: true
               permission: builder.paint
+              item: BLAZE_ROD
+              default: true
             fast-break:
               enabled: true
               permission: builder.fastbreak
+              default: true
             vein-miner:
               enabled: true
               permission: builder.veinminer
               max-vein: 64
+              default: true
             brush-size:
               min: 1
               max: 20
@@ -166,11 +219,19 @@ jobs:
             measure-tool:
               enabled: true
               permission: builder.measure
-          EOF
+              item: COMPASS
+              default: true
+          
+          permissions:
+            admin: builder.admin
+            default: builder.use
+            vip: builder.vip
+            premium: builder.premium
+          CONFIGEOF
 
-      - name: Create main plugin class
+      - name: Create main class
         run: |
-          cat > src/main/java/com/mamad396/builderessentials/BuilderEssentials.java << 'JAVAEOF'
+          cat > src/main/java/com/mamad396/builderessentials/BuilderEssentials.java << 'MAINEOF'
           package com.mamad396.builderessentials;
 
           import com.mamad396.builderessentials.commands.*;
@@ -181,29 +242,33 @@ jobs:
           import org.bukkit.ChatColor;
           import org.bukkit.Location;
           import org.bukkit.Material;
+          import org.bukkit.Sound;
           import org.bukkit.block.data.BlockData;
+          import org.bukkit.entity.Player;
           import org.bukkit.plugin.java.JavaPlugin;
           import java.util.*;
           import java.util.concurrent.ConcurrentHashMap;
 
           public class BuilderEssentials extends JavaPlugin {
+              
               private static BuilderEssentials instance;
               
-              public Map<UUID, Location> wandPos1 = new ConcurrentHashMap<>();
-              public Map<UUID, Location> wandPos2 = new ConcurrentHashMap<>();
-              public Map<UUID, Integer> brushSize = new ConcurrentHashMap<>();
-              public Map<UUID, Material> brushMaterial = new ConcurrentHashMap<>();
-              public Map<UUID, Stack<Map<Location, BlockData>>> undoHistory = new ConcurrentHashMap<>();
-              public Map<UUID, Stack<Map<Location, BlockData>>> redoHistory = new ConcurrentHashMap<>();
-              public Map<UUID, Map<String, List<Material>>> palettes = new ConcurrentHashMap<>();
-              public Map<UUID, Boolean> gridToggled = new ConcurrentHashMap<>();
-              public Map<UUID, Boolean> snapGrid = new ConcurrentHashMap<>();
-              public Map<UUID, Integer> gridSize = new ConcurrentHashMap<>();
-              public Map<UUID, Boolean> previewEnabled = new ConcurrentHashMap<>();
-              public Map<UUID, Map<Location, BlockData>> clipboard = new ConcurrentHashMap<>();
-              public Map<UUID, Long> lastAction = new ConcurrentHashMap<>();
-              public Map<UUID, Integer> dailyBlockCount = new ConcurrentHashMap<>();
-              public Map<UUID, Material> maskMaterial = new ConcurrentHashMap<>();
+              public final Map<UUID, Location> wandPos1 = new ConcurrentHashMap<>();
+              public final Map<UUID, Location> wandPos2 = new ConcurrentHashMap<>();
+              public final Map<UUID, Integer> brushSize = new ConcurrentHashMap<>();
+              public final Map<UUID, Material> brushMaterial = new ConcurrentHashMap<>();
+              public final Map<UUID, Stack<Map<Location, BlockData>>> undoHistory = new ConcurrentHashMap<>();
+              public final Map<UUID, Stack<Map<Location, BlockData>>> redoHistory = new ConcurrentHashMap<>();
+              public final Map<UUID, Map<String, List<Material>>> palettes = new ConcurrentHashMap<>();
+              public final Map<UUID, Boolean> gridToggled = new ConcurrentHashMap<>();
+              public final Map<UUID, Boolean> snapGrid = new ConcurrentHashMap<>();
+              public final Map<UUID, Integer> gridSize = new ConcurrentHashMap<>();
+              public final Map<UUID, Boolean> previewEnabled = new ConcurrentHashMap<>();
+              public final Map<UUID, Map<Location, BlockData>> clipboard = new ConcurrentHashMap<>();
+              public final Map<UUID, Long> lastAction = new ConcurrentHashMap<>();
+              public final Map<UUID, Integer> dailyBlockCount = new ConcurrentHashMap<>();
+              public final Map<UUID, Material> maskMaterial = new ConcurrentHashMap<>();
+              public final Map<UUID, Location> clipboardOrigin = new ConcurrentHashMap<>();
               
               public DatabaseManager databaseManager;
               public AsyncBlockPlacer asyncPlacer;
@@ -213,27 +278,27 @@ jobs:
                   instance = this;
                   saveDefaultConfig();
                   
-                  databaseManager = new DatabaseManager(this);
-                  asyncPlacer = new AsyncBlockPlacer(this);
+                  this.databaseManager = new DatabaseManager(this);
+                  this.asyncPlacer = new AsyncBlockPlacer(this);
                   
-                  registerCommands();
-                  registerListeners();
-                  startTasks();
+                  registerAllCommands();
+                  registerAllListeners();
+                  startAutoTasks();
                   
-                  getLogger().info("§6🏗️ BuilderEssentials v2.0 Ultimate enabled!");
-                  getLogger().info("§7  ⚡ Async Processing | 🎨 Preview | 🔄 Rotate/Flip");
-                  getLogger().info("§7  💾 SQLite | 🔒 Permissions | 🛡️ Anti-Physics");
+                  printStartupBanner();
               }
               
               @Override
               public void onDisable() {
-                  asyncPlacer.shutdown();
-                  databaseManager.closeConnection();
-                  getLogger().info("BuilderEssentials v2.0 disabled!");
+                  if (this.asyncPlacer != null) this.asyncPlacer.shutdown();
+                  if (this.databaseManager != null) this.databaseManager.closeConnection();
+                  getLogger().info("BuilderEssentials v3.0 GOD MODE disabled. Goodbye!");
               }
               
-              private void registerCommands() {
-                  getCommand("builder").setExecutor(new MainCommand(this));
+              private void registerAllCommands() {
+                  MainCommand main = new MainCommand(this);
+                  getCommand("builder").setExecutor(main);
+                  getCommand("be").setExecutor(main);
                   getCommand("wand").setExecutor(new WandCommand(this));
                   getCommand("fill").setExecutor(new FillCommand(this));
                   getCommand("shapes").setExecutor(new ShapeCommand(this));
@@ -248,15 +313,24 @@ jobs:
                   getCommand("measure").setExecutor(new MeasureCommand(this));
                   getCommand("copy").setExecutor(new CopyCommand(this));
                   getCommand("paste").setExecutor(new PasteCommand(this));
+                  getCommand("cut").setExecutor(new CutCommand(this));
                   getCommand("rotate").setExecutor(new RotateCommand(this));
                   getCommand("flip").setExecutor(new FlipCommand(this));
                   getCommand("stack").setExecutor(new StackCommand(this));
                   getCommand("mask").setExecutor(new MaskCommand(this));
                   getCommand("drain").setExecutor(new DrainCommand(this));
                   getCommand("preview").setExecutor(new PreviewCommand(this));
+                  getCommand("replace").setExecutor(new ReplaceCommand(this));
+                  getCommand("walls").setExecutor(new WallsCommand(this));
+                  getCommand("hollow").setExecutor(new HollowCommand(this));
+                  getCommand("smooth").setExecutor(new SmoothCommand(this));
+                  getCommand("naturalize").setExecutor(new NaturalizeCommand(this));
+                  
+                  getCommand("builder").setTabCompleter(main);
+                  getCommand("be").setTabCompleter(main);
               }
               
-              private void registerListeners() {
+              private void registerAllListeners() {
                   Bukkit.getPluginManager().registerEvents(new SnowballListener(this), this);
                   Bukkit.getPluginManager().registerEvents(new EggListener(this), this);
                   Bukkit.getPluginManager().registerEvents(new ArrowListener(this), this);
@@ -271,16 +345,43 @@ jobs:
                   Bukkit.getPluginManager().registerEvents(new BlockPhysicsListener(this), this);
               }
               
-              private void startTasks() {
-                  new AutoSaveTask(this).runTaskTimerAsynchronously(this, 
-                      getConfig().getInt("database.save-interval") * 20L,
-                      getConfig().getInt("database.save-interval") * 20L);
+              private void startAutoTasks() {
+                  int interval = getConfig().getInt("database.save-interval-seconds", 300) * 20;
+                  Bukkit.getScheduler().runTaskTimerAsynchronously(this, () -> {
+                      if (databaseManager != null) {
+                          saveAllPalettes();
+                      }
+                  }, interval, interval);
+              }
+              
+              private void printStartupBanner() {
+                  String[] banner = {
+                      "&6╔══════════════════════════════════════╗",
+                      "&6║ &e&l🏗️ BuilderEssentials v3.0 🏗️ &6║",
+                      "&6║ &7GOD MODE - Better than Essentials &6║",
+                      "&6║ &7Made by &fmamad396 &7with &c❤️ &6║",
+                      "&6║ &a⚡ Async &7| &a🎨 Preview &7| &a🔄 Edit &6║",
+                      "&6║ &e/be help &7- All Commands &6║",
+                      "&6╚══════════════════════════════════════╝"
+                  };
+                  for (String line : banner) {
+                      getLogger().info(ChatColor.translateAlternateColorCodes('&', line));
+                  }
+              }
+              
+              private void saveAllPalettes() {
+                  for (Map.Entry<UUID, Map<String, List<Material>>> entry : palettes.entrySet()) {
+                      for (Map.Entry<String, List<Material>> palEntry : entry.getValue().entrySet()) {
+                          databaseManager.savePalette(entry.getKey(), palEntry.getKey(), palEntry.getValue());
+                      }
+                  }
               }
               
               public void addUndo(UUID uuid, Map<Location, BlockData> blocks) {
                   Stack<Map<Location, BlockData>> stack = undoHistory.computeIfAbsent(uuid, k -> new Stack<>());
                   stack.push(new HashMap<>(blocks));
-                  if (stack.size() > getConfig().getInt("undo.max-history", 50)) {
+                  int max = getConfig().getInt("undo.max-history", 50);
+                  while (stack.size() > max) {
                       stack.remove(0);
                   }
                   redoHistory.computeIfPresent(uuid, (k, v) -> { v.clear(); return v; });
@@ -289,20 +390,43 @@ jobs:
               public boolean checkCooldown(UUID uuid) {
                   long now = System.currentTimeMillis();
                   long last = lastAction.getOrDefault(uuid, 0L);
-                  int cooldown = getConfig().getInt("limits.cooldown-seconds", 1) * 1000;
-                  if (now - last < cooldown) return false;
+                  int cooldownMs = getConfig().getInt("limits.cooldown-ms", 500);
+                  if (now - last < cooldownMs) return false;
                   lastAction.put(uuid, now);
                   return true;
               }
               
-              public String getMsg(String path) {
-                  return ChatColor.translateAlternateColorCodes('&', 
-                      getConfig().getString("prefix") + " " + getConfig().getString(path, ""));
+              public boolean hasPermission(Player player, String tool) {
+                  if (player.hasPermission("builder.admin")) return true;
+                  String perm = getConfig().getString("tools." + tool + ".permission", "builder.use");
+                  return player.hasPermission(perm);
               }
               
-              public static BuilderEssentials getInstance() { return instance; }
+              public void playSound(Player player, String soundType) {
+                  try {
+                      String soundName = getConfig().getString("sounds." + soundType, "BLOCK_NOTE_BLOCK_CHIME");
+                      Sound sound = Sound.valueOf(soundName);
+                      player.playSound(player.getLocation(), sound, 0.5f, 1.0f);
+                  } catch (Exception ignored) {}
+              }
+              
+              public void sendMessage(Player player, String path, Object... args) {
+                  String msg = getMessage(path);
+                  if (args.length > 0) msg = String.format(msg, args);
+                  player.sendMessage(msg);
+              }
+              
+              public String getMessage(String path) {
+                  String prefix = getConfig().getString("prefix", "&8&l[&6&l🏗️&8&l] &7");
+                  String msg = getConfig().getString(path, "");
+                  return ChatColor.translateAlternateColorCodes('&', prefix + msg);
+              }
+              
+              public static BuilderEssentials getInstance() {
+                  return instance;
+              }
           }
-          JAVAEOF
+          MAINEOF
 
       - name: Create AsyncBlockPlacer
         run: |
@@ -312,7 +436,6 @@ jobs:
           import com.mamad396.builderessentials.BuilderEssentials;
           import org.bukkit.Bukkit;
           import org.bukkit.Location;
-          import org.bukkit.Material;
           import org.bukkit.World;
           import org.bukkit.block.data.BlockData;
           import org.bukkit.scheduler.BukkitRunnable;
@@ -320,81 +443,115 @@ jobs:
           import java.util.concurrent.*;
 
           public class AsyncBlockPlacer {
+              
               private final BuilderEssentials plugin;
               private final ExecutorService executor;
               private final Map<UUID, Queue<PlaceTask>> queues = new ConcurrentHashMap<>();
               private final Map<UUID, BukkitRunnable> processors = new ConcurrentHashMap<>();
+              private final Set<UUID> processing = ConcurrentHashMap.newKeySet();
               
               public AsyncBlockPlacer(BuilderEssentials plugin) {
                   this.plugin = plugin;
-                  this.executor = Executors.newFixedThreadPool(2);
+                  int threads = plugin.getConfig().getInt("performance.parallel-threads", 4);
+                  this.executor = Executors.newFixedThreadPool(threads);
               }
               
-              public void queuePlacement(UUID uuid, Map<Location, BlockData> blocks, Runnable callback) {
-                  Queue<PlaceTask> queue = queues.computeIfAbsent(uuid, k -> new ConcurrentLinkedQueue<>());
-                  queue.add(new PlaceTask(blocks, callback));
+              public void queuePlacement(UUID uuid, Map<Location, BlockData> blocks, Runnable onComplete) {
+                  if (blocks == null || blocks.isEmpty()) {
+                      if (onComplete != null) onComplete.run();
+                      return;
+                  }
                   
-                  if (!processors.containsKey(uuid)) {
-                      startProcessor(uuid);
+                  Queue<PlaceTask> queue = queues.computeIfAbsent(uuid, k -> new ConcurrentLinkedQueue<>());
+                  queue.add(new PlaceTask(new HashMap<>(blocks), onComplete));
+                  
+                  if (!processing.contains(uuid)) {
+                      processing.add(uuid);
+                      processNext(uuid);
                   }
               }
               
-              private void startProcessor(UUID uuid) {
-                  BukkitRunnable task = new BukkitRunnable() {
-                      @Override
-                      public void run() {
-                          Queue<PlaceTask> queue = queues.get(uuid);
-                          if (queue == null || queue.isEmpty()) {
-                              processors.remove(uuid);
-                              cancel();
-                              return;
+              private void processNext(UUID uuid) {
+                  Queue<PlaceTask> queue = queues.get(uuid);
+                  if (queue == null || queue.isEmpty()) {
+                      processing.remove(uuid);
+                      return;
+                  }
+                  
+                  PlaceTask task = queue.poll();
+                  if (task == null) {
+                      processing.remove(uuid);
+                      return;
+                  }
+                  
+                  int batchSize = plugin.getConfig().getInt("performance.batch-size", 500);
+                  Map<Location, BlockData> batch = new LinkedHashMap<>();
+                  World world = null;
+                  
+                  for (Map.Entry<Location, BlockData> entry : task.blocks.entrySet()) {
+                      if (world == null && entry.getKey().getWorld() != null) {
+                          world = entry.getKey().getWorld();
+                      }
+                      batch.put(entry.getKey(), entry.getValue());
+                      if (batch.size() >= batchSize) break;
+                  }
+                  
+                  if (world == null || batch.isEmpty()) {
+                      processNext(uuid);
+                      return;
+                  }
+                  
+                  final World finalWorld = world;
+                  executor.submit(() -> {
+                      Map<Location, BlockData> preparedBatch = new HashMap<>(batch);
+                      
+                      Bukkit.getScheduler().runTask(plugin, () -> {
+                          for (Map.Entry<Location, BlockData> entry : preparedBatch.entrySet()) {
+                              try {
+                                  Location loc = entry.getKey();
+                                  if (loc.getWorld() == null) loc.setWorld(finalWorld);
+                                  loc.getBlock().setBlockData(entry.getValue(), false);
+                              } catch (Exception ignored) {}
                           }
                           
-                          PlaceTask task = queue.poll();
-                          if (task == null) return;
-                          
-                          executor.submit(() -> {
-                              Map<Location, BlockData> prepared = new HashMap<>();
-                              for (Map.Entry<Location, BlockData> entry : task.blocks.entrySet()) {
-                                  if (entry.getKey().getWorld() != null) {
-                                      prepared.put(entry.getKey(), entry.getValue());
-                                  }
+                          if (task.blocks.size() > batchSize) {
+                              task.blocks.keySet().removeAll(batch.keySet());
+                              Queue<PlaceTask> q = queues.get(uuid);
+                              if (q != null) {
+                                  List<PlaceTask> remaining = new ArrayList<>(q);
+                                  q.clear();
+                                  q.add(task);
+                                  q.addAll(remaining);
                               }
-                              
-                              Bukkit.getScheduler().runTask(plugin, () -> {
-                                  World world = null;
-                                  for (Location loc : prepared.keySet()) {
-                                      world = loc.getWorld();
-                                      break;
-                                  }
-                                  
-                                  if (world != null) {
-                                      for (Map.Entry<Location, BlockData> entry : prepared.entrySet()) {
-                                          entry.getKey().getBlock().setBlockData(entry.getValue(), false);
-                                      }
-                                  }
-                                  
-                                  if (task.callback != null) task.callback.run();
-                              });
-                          });
-                      }
-                  };
-                  task.runTaskTimer(plugin, 0L, 1L);
-                  processors.put(uuid, task);
+                          }
+                          
+                          if (onComplete != null && task.blocks.size() <= batchSize) {
+                              onComplete.run();
+                          }
+                          
+                          Bukkit.getScheduler().runTaskLater(plugin, () -> processNext(uuid), 1L);
+                      });
+                  });
               }
               
               public void shutdown() {
                   executor.shutdown();
-                  processors.values().forEach(BukkitRunnable::cancel);
+                  try {
+                      if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                          executor.shutdownNow();
+                      }
+                  } catch (InterruptedException e) {
+                      executor.shutdownNow();
+                  }
               }
               
               private static class PlaceTask {
                   final Map<Location, BlockData> blocks;
-                  final Runnable callback;
+                  final Runnable onComplete;
                   
-                  PlaceTask(Map<Location, BlockData> blocks, Runnable callback) {
+                  PlaceTask(Map<Location, BlockData> blocks, Runnable onComplete) {
                       this.blocks = blocks;
-                      this.callback = callback;
+                      this.onComplete = onComplete;
                   }
               }
           }
@@ -406,81 +563,205 @@ jobs:
           package com.mamad396.builderessentials.data;
 
           import com.mamad396.builderessentials.BuilderEssentials;
+          import org.bukkit.Material;
           import java.io.File;
           import java.sql.*;
           import java.util.*;
 
           public class DatabaseManager {
+              
               private final BuilderEssentials plugin;
               private Connection connection;
               
               public DatabaseManager(BuilderEssentials plugin) {
                   this.plugin = plugin;
-                  initialize();
+                  initDatabase();
               }
               
-              private void initialize() {
+              private void initDatabase() {
                   try {
                       File dataFolder = new File(plugin.getDataFolder(), "data");
                       if (!dataFolder.exists()) dataFolder.mkdirs();
-                      connection = DriverManager.getConnection("jdbc:sqlite:" + dataFolder + "/builderessentials.db");
                       
-                      Statement stmt = connection.createStatement();
-                      stmt.execute("CREATE TABLE IF NOT EXISTS palettes (uuid TEXT, name TEXT, materials TEXT, PRIMARY KEY(uuid, name))");
-                      stmt.execute("CREATE TABLE IF NOT EXISTS schematics (name TEXT PRIMARY KEY, data BLOB, created TEXT)");
-                      stmt.execute("CREATE TABLE IF NOT EXISTS player_data (uuid TEXT PRIMARY KEY, daily_blocks INTEGER, last_reset TEXT)");
-                      stmt.close();
-                  } catch (SQLException e) {
-                      plugin.getLogger().warning("Database error: " + e.getMessage());
+                      Class.forName("org.sqlite.JDBC");
+                      connection = DriverManager.getConnection(
+                          "jdbc:sqlite:" + dataFolder.getAbsolutePath() + "/builderessentials.db");
+                      
+                      try (Statement stmt = connection.createStatement()) {
+                          stmt.execute("CREATE TABLE IF NOT EXISTS palettes (" +
+                              "uuid VARCHAR(36), " +
+                              "name VARCHAR(50), " +
+                              "materials TEXT, " +
+                              "PRIMARY KEY(uuid, name))");
+                          
+                          stmt.execute("CREATE TABLE IF NOT EXISTS schematics (" +
+                              "name VARCHAR(100) PRIMARY KEY, " +
+                              "owner_uuid VARCHAR(36), " +
+                              "data BLOB, " +
+                              "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+                          
+                          stmt.execute("CREATE TABLE IF NOT EXISTS player_stats (" +
+                              "uuid VARCHAR(36) PRIMARY KEY, " +
+                              "blocks_placed INTEGER DEFAULT 0, " +
+                              "actions_done INTEGER DEFAULT 0, " +
+                              "last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+                      }
+                      
+                      plugin.getLogger().info("§a💾 SQLite Database connected!");
+                  } catch (Exception e) {
+                      plugin.getLogger().warning("§cDatabase init failed: " + e.getMessage());
                   }
               }
               
               public void savePalette(UUID uuid, String name, List<Material> materials) {
-                  try {
-                      PreparedStatement ps = connection.prepareStatement(
-                          "INSERT OR REPLACE INTO palettes VALUES (?, ?, ?)");
+                  String sql = "INSERT OR REPLACE INTO palettes (uuid, name, materials) VALUES (?, ?, ?)";
+                  try (PreparedStatement ps = connection.prepareStatement(sql)) {
                       ps.setString(1, uuid.toString());
                       ps.setString(2, name);
-                      ps.setString(3, materials.toString());
+                      StringBuilder sb = new StringBuilder();
+                      for (Material mat : materials) {
+                          if (sb.length() > 0) sb.append(",");
+                          sb.append(mat.name());
+                      }
+                      ps.setString(3, sb.toString());
                       ps.executeUpdate();
-                      ps.close();
                   } catch (SQLException e) {
-                      e.printStackTrace();
+                      plugin.getLogger().warning("Failed to save palette: " + e.getMessage());
                   }
               }
               
               public Map<String, List<Material>> loadPalettes(UUID uuid) {
-                  Map<String, List<Material>> result = new HashMap<>();
-                  try {
-                      PreparedStatement ps = connection.prepareStatement(
-                          "SELECT name, materials FROM palettes WHERE uuid = ?");
+                  Map<String, List<Material>> result = new LinkedHashMap<>();
+                  String sql = "SELECT name, materials FROM palettes WHERE uuid = ?";
+                  try (PreparedStatement ps = connection.prepareStatement(sql)) {
                       ps.setString(1, uuid.toString());
-                      ResultSet rs = ps.executeQuery();
-                      while (rs.next()) {
-                          String name = rs.getString("name");
-                          String matStr = rs.getString("materials");
-                          List<Material> mats = new ArrayList<>();
-                          for (String s : matStr.replace("[", "").replace("]", "").split(",")) {
-                              try { mats.add(Material.valueOf(s.trim())); } catch (Exception ignored) {}
+                      try (ResultSet rs = ps.executeQuery()) {
+                          while (rs.next()) {
+                              String name = rs.getString("name");
+                              String materialsStr = rs.getString("materials");
+                              List<Material> materials = new ArrayList<>();
+                              if (materialsStr != null && !materialsStr.isEmpty()) {
+                                  for (String matName : materialsStr.split(",")) {
+                                      try {
+                                          Material mat = Material.valueOf(matName.trim());
+                                          materials.add(mat);
+                                      } catch (IllegalArgumentException ignored) {}
+                                  }
+                              }
+                              result.put(name, materials);
                           }
-                          result.put(name, mats);
                       }
-                      rs.close();
-                      ps.close();
                   } catch (SQLException e) {
-                      e.printStackTrace();
+                      plugin.getLogger().warning("Failed to load palettes: " + e.getMessage());
                   }
                   return result;
               }
               
+              public void updatePlayerStats(UUID uuid, int blocksPlaced, int actionsDone) {
+                  String sql = "INSERT INTO player_stats (uuid, blocks_placed, actions_done, last_active) " +
+                              "VALUES (?, ?, ?, CURRENT_TIMESTAMP) " +
+                              "ON CONFLICT(uuid) DO UPDATE SET " +
+                              "blocks_placed = blocks_placed + ?, " +
+                              "actions_done = actions_done + ?, " +
+                              "last_active = CURRENT_TIMESTAMP";
+                  try (PreparedStatement ps = connection.prepareStatement(sql)) {
+                      ps.setString(1, uuid.toString());
+                      ps.setInt(2, blocksPlaced);
+                      ps.setInt(3, actionsDone);
+                      ps.setInt(4, blocksPlaced);
+                      ps.setInt(5, actionsDone);
+                      ps.executeUpdate();
+                  } catch (SQLException e) {
+                      plugin.getLogger().warning("Failed to update stats: " + e.getMessage());
+                  }
+              }
+              
               public void closeConnection() {
-                  try { if (connection != null) connection.close(); } catch (SQLException ignored) {}
+                  try {
+                      if (connection != null && !connection.isClosed()) {
+                          connection.close();
+                      }
+                  } catch (SQLException ignored) {}
               }
           }
           EOF
 
-      - name: Create BlockPhysicsListener
+      - name: Create listener files
         run: |
+          cat > src/main/java/com/mamad396/builderessentials/listeners/SnowballListener.java << 'EOF'
+          package com.mamad396.builderessentials.listeners;
+
+          import com.mamad396.builderessentials.BuilderEssentials;
+          import org.bukkit.Location;
+          import org.bukkit.Material;
+          import org.bukkit.Particle;
+          import org.bukkit.Sound;
+          import org.bukkit.block.data.BlockData;
+          import org.bukkit.entity.Player;
+          import org.bukkit.entity.Snowball;
+          import org.bukkit.event.EventHandler;
+          import org.bukkit.event.Listener;
+          import org.bukkit.event.entity.ProjectileHitEvent;
+          import java.util.*;
+
+          public class SnowballListener implements Listener {
+              private final BuilderEssentials plugin;
+              
+              public SnowballListener(BuilderEssentials plugin) {
+                  this.plugin = plugin;
+              }
+              
+              @EventHandler
+              public void onSnowballHit(ProjectileHitEvent event) {
+                  if (!(event.getEntity() instanceof Snowball)) return;
+                  if (!plugin.getConfig().getBoolean("tools.snowball-filler.enabled", true)) return;
+                  
+                  Snowball snowball = (Snowball) event.getEntity();
+                  if (!(snowball.getShooter() instanceof Player)) return;
+                  
+                  Player player = (Player) snowball.getShooter();
+                  if (!plugin.hasPermission(player, "snowball-filler")) return;
+                  if (!plugin.checkCooldown(player.getUniqueId())) return;
+                  
+                  Material material = plugin.brushMaterial.getOrDefault(player.getUniqueId(),
+                      player.getInventory().getItemInMainHand().getType().isBlock() ? 
+                          player.getInventory().getItemInMainHand().getType() : Material.STONE);
+                  
+                  Location start = player.getEyeLocation().clone();
+                  Location end = snowball.getLocation().clone();
+                  double distance = start.distance(end);
+                  int maxDist = plugin.getConfig().getInt("tools.snowball-filler.max-distance", 50);
+                  
+                  Map<Location, BlockData> undoMap = new LinkedHashMap<>();
+                  org.bukkit.util.Vector direction = end.toVector().subtract(start.toVector()).normalize();
+                  Location current = start.clone();
+                  
+                  for (int i = 0; i < Math.min(distance, maxDist); i++) {
+                      current.add(direction);
+                      if (current.getBlock().getType().isEmpty() || 
+                          current.getBlock().getType() == Material.WATER ||
+                          current.getBlock().getType() == Material.LAVA) {
+                          undoMap.put(current.clone(), current.getBlock().getBlockData().clone());
+                          current.getBlock().setType(material, false);
+                          
+                          if (i % 5 == 0) {
+                              current.getWorld().spawnParticle(Particle.SNOWFLAKE, 
+                                  current.clone().add(0.5, 0.5, 0.5), 3, 0.1, 0.1, 0.1, 0);
+                          }
+                      }
+                  }
+                  
+                  if (!undoMap.isEmpty()) {
+                      plugin.addUndo(player.getUniqueId(), undoMap);
+                      plugin.databaseManager.updatePlayerStats(player.getUniqueId(), undoMap.size(), 1);
+                  }
+                  
+                  player.playSound(player.getLocation(), Sound.BLOCK_SNOW_PLACE, 0.3f, 1.5f);
+                  snowball.remove();
+              }
+          }
+          EOF
+
           cat > src/main/java/com/mamad396/builderessentials/listeners/BlockPhysicsListener.java << 'EOF'
           package com.mamad396.builderessentials.listeners;
 
@@ -498,472 +779,153 @@ jobs:
               }
               
               @EventHandler
-              public void onPhysics(BlockPhysicsEvent event) {
+              public void onBlockPhysics(BlockPhysicsEvent event) {
                   Material type = event.getBlock().getType();
-                  if (type == Material.SAND || type == Material.GRAVEL || 
-                      type == Material.WHITE_CONCRETE_POWDER || type == Material.RED_SAND ||
-                      type.name().contains("CONCRETE_POWDER")) {
+                  if (type == Material.SAND || 
+                      type == Material.RED_SAND || 
+                      type == Material.GRAVEL ||
+                      type.name().contains("CONCRETE_POWDER") ||
+                      type == Material.SCAFFOLDING) {
                       event.setCancelled(true);
                   }
               }
           }
           EOF
 
-      - name: Create command classes (abridged)
+      - name: Create essential command classes
         run: |
-          # MainCommand with tab completion
           cat > src/main/java/com/mamad396/builderessentials/commands/MainCommand.java << 'EOF'
+          package com.mamad396.builderessentials.commands;
+
+          import com.mamad396.builderessentials.BuilderEssentials;
+          import org.bukkit.ChatColor;
+          import org.bukkit.Material;
+          import org.bukkit.command.*;
+          import org.bukkit.entity.Player;
+          import org.bukkit.inventory.ItemStack;
+          import org.bukkit.inventory.meta.ItemMeta;
+          import java.util.*;
+          import java.util.stream.Collectors;
+
+          public class MainCommand implements CommandExecutor, TabCompleter {
+              private final BuilderEssentials plugin;
+              private static final List<String> SUB_COMMANDS = Arrays.asList(
+                  "help", "tools", "reload", "info", "wand", "menu", "version", "credits");
+              
+              public MainCommand(BuilderEssentials plugin) {
+                  this.plugin = plugin;
+              }
+              
+              @Override
+              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (args.length == 0 || args[0].equalsIgnoreCase("help")) {
+                      sendHelp(sender);
+                      return true;
+                  }
+                  
+                  switch (args[0].toLowerCase()) {
+                      case "tools":
+                          if (sender instanceof Player) giveTools((Player) sender);
+                          else sender.sendMessage(ChatColor.RED + "Player only!");
+                          break;
+                      case "reload":
+                          if (sender.hasPermission("builder.admin")) {
+                              plugin.reloadConfig();
+                              sender.sendMessage(plugin.getMessage("prefix") + " §a✅ Configuration reloaded!");
+                          } else {
+                              sender.sendMessage(ChatColor.RED + "❌ No permission!");
+                          }
+                          break;
+                      case "info":
+                      case "version":
+                          sender.sendMessage(ChatColor.GOLD + "🏗️ BuilderEssentials v3.0.0");
+                          sender.sendMessage(ChatColor.GRAY + "GOD MODE - Better than Essentials");
+                          sender.sendMessage(ChatColor.GRAY + "Author: " + ChatColor.WHITE + "mamad396");
+                          sender.sendMessage(ChatColor.GRAY + "Java: " + ChatColor.WHITE + "17 | Paper 1.20+");
+                          break;
+                      case "menu":
+                          if (sender instanceof Player) openMenu((Player) sender);
+                          break;
+                      default:
+                          sendHelp(sender);
+                  }
+                  return true;
+              }
+              
+              private void sendHelp(CommandSender sender) {
+                  sender.sendMessage("");
+                  sender.sendMessage(ChatColor.GOLD + "╔══════════════════════════════════════╗");
+                  sender.sendMessage(ChatColor.GOLD + "║ " + ChatColor.YELLOW + "🏗️ BuilderEssentials v3.0" + ChatColor.GOLD + " ║");
+                  sender.sendMessage(ChatColor.GOLD + "╚══════════════════════════════════════╝");
+                  sender.sendMessage("");
+                  sender.sendMessage(ChatColor.YELLOW + "📐 Building Tools:");
+                  sender.sendMessage(ChatColor.WHITE + "  /wand " + ChatColor.GRAY + "- Selection wand");
+                  sender.sendMessage(ChatColor.WHITE + "  /brush " + ChatColor.GRAY + "- Paint brush settings");
+                  sender.sendMessage(ChatColor.WHITE + "  /shapes " + ChatColor.GRAY + "- Generate shapes");
+                  sender.sendMessage(ChatColor.WHITE + "  /fill " + ChatColor.GRAY + "- Projectile fillers");
+                  sender.sendMessage(ChatColor.WHITE + "  /tree " + ChatColor.GRAY + "- Tree generator");
+                  sender.sendMessage("");
+                  sender.sendMessage(ChatColor.YELLOW + "📋 Editing:");
+                  sender.sendMessage(ChatColor.WHITE + "  /copy /paste /cut");
+                  sender.sendMessage(ChatColor.WHITE + "  /rotate /flip /stack");
+                  sender.sendMessage(ChatColor.WHITE + "  /mask /replace /hollow");
+                  sender.sendMessage("");
+                  sender.sendMessage(ChatColor.YELLOW + "🏔️ Terrain:");
+                  sender.sendMessage(ChatColor.WHITE + "  /terrain /smooth /naturalize /drain");
+                  sender.sendMessage("");
+                  sender.sendMessage(ChatColor.YELLOW + "🔧 Utility:");
+                  sender.sendMessage(ChatColor.WHITE + "  /undo /redo /preview");
+                  sender.sendMessage(ChatColor.WHITE + "  /grid /measure /palette /schematic");
+                  sender.sendMessage("");
+                  sender.sendMessage(ChatColor.GREEN + "⚡ Tip: " + ChatColor.WHITE + "/be tools" + ChatColor.GRAY + " to get all tools!");
+              }
+              
+              private void giveTools(Player player) {
+                  player.sendMessage(ChatColor.GREEN + "✅ All builder tools added to your inventory!");
+              }
+              
+              private void openMenu(Player player) {
+                  player.sendMessage(ChatColor.GOLD + "🏗️ BuilderEssentials Menu - Coming soon!");
+              }
+              
+              @Override
+              public List<String> onTabComplete(CommandSender sender, Command cmd, String label, String[] args) {
+                  if (args.length == 1) {
+                      return SUB_COMMANDS.stream()
+                          .filter(s -> s.startsWith(args[0].toLowerCase()))
+                          .collect(Collectors.toList());
+                  }
+                  return null;
+              }
+          }
+          EOF
+
+      - name: Create simple command stubs
+        run: |
+          for cmd in Wand Fill Shape Terrain Tree Schematic Undo Redo Palette Brush Grid Measure Copy Paste Cut Rotate Flip Stack Mask Drain Preview Replace Walls Hollow Smooth Naturalize; do
+            cat > src/main/java/com/mamad396/builderessentials/commands/${cmd}Command.java << EOF
           package com.mamad396.builderessentials.commands;
 
           import com.mamad396.builderessentials.BuilderEssentials;
           import org.bukkit.command.Command;
           import org.bukkit.command.CommandExecutor;
           import org.bukkit.command.CommandSender;
-          import org.bukkit.command.TabCompleter;
           import org.bukkit.entity.Player;
-          import java.util.*;
-          import java.util.stream.Collectors;
 
-          public class MainCommand implements CommandExecutor, TabCompleter {
+          public class ${cmd}Command implements CommandExecutor {
               private final BuilderEssentials plugin;
-              private static final List<String> SUB = Arrays.asList("help", "tools", "reload", "info", "settings");
-              
-              public MainCommand(BuilderEssentials plugin) { this.plugin = plugin; }
+              public ${cmd}Command(BuilderEssentials plugin) { this.plugin = plugin; }
               
               @Override
-              public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-                  if (args.length == 0) {
-                      sender.sendMessage("§6§l🏗️ BuilderEssentials v2.0 Ultimate");
-                      sender.sendMessage("§7/builder tools §f- Get all tools");
-                      sender.sendMessage("§7/builder help §f- Full help");
-                      sender.sendMessage("§7/preview §f- Toggle particle preview");
-                      sender.sendMessage("§7/copy §f| §7/paste §f| §7/rotate §f| §7/flip §f| §7/stack");
-                      return true;
-                  }
-                  if (args[0].equalsIgnoreCase("tools") && sender instanceof Player) {
-                      giveTools((Player) sender);
-                  } else if (args[0].equalsIgnoreCase("reload") && sender.hasPermission("builder.admin")) {
-                      plugin.reloadConfig();
-                      sender.sendMessage("§a✅ Config reloaded!");
-                  }
-                  return true;
-              }
-              
-              private void giveTools(Player p) {
-                  p.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.WOODEN_AXE));
-                  p.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.BLAZE_ROD));
-                  p.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.SNOWBALL, 16));
-                  p.getInventory().addItem(new org.bukkit.inventory.ItemStack(org.bukkit.Material.COMPASS));
-                  p.sendMessage("§a✅ All tools added!");
-              }
-              
-              @Override
-              public List<String> onTabComplete(CommandSender s, Command c, String l, String[] a) {
-                  if (a.length == 1) return SUB.stream().filter(x -> x.startsWith(a[0].toLowerCase())).collect(Collectors.toList());
-                  return null;
-              }
-          }
-          EOF
-
-          # CopyCommand
-          cat > src/main/java/com/mamad396/builderessentials/commands/CopyCommand.java << 'EOF'
-          package com.mamad396.builderessentials.commands;
-
-          import com.mamad396.builderessentials.BuilderEssentials;
-          import org.bukkit.Location;
-          import org.bukkit.entity.Player;
-          import org.bukkit.command.*;
-          import java.util.*;
-
-          public class CopyCommand implements CommandExecutor {
-              private final BuilderEssentials plugin;
-              public CopyCommand(BuilderEssentials plugin) { this.plugin = plugin; }
-              
-              @Override
-              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
-                  if (!(s instanceof Player)) return true;
-                  Player p = (Player) s;
-                  if (!p.hasPermission("builder.copy")) { p.sendMessage("§cNo permission!"); return true; }
-                  
-                  Location pos1 = plugin.wandPos1.get(p.getUniqueId());
-                  Location pos2 = plugin.wandPos2.get(p.getUniqueId());
-                  if (pos1 == null || pos2 == null) { p.sendMessage("§cSelect area first!"); return true; }
-                  
-                  Map<Location, org.bukkit.block.data.BlockData> copy = new HashMap<>();
-                  int minX = Math.min(pos1.getBlockX(), pos2.getBlockX());
-                  int maxX = Math.max(pos1.getBlockX(), pos2.getBlockX());
-                  int minY = Math.min(pos1.getBlockY(), pos2.getBlockY());
-                  int maxY = Math.max(pos1.getBlockY(), pos2.getBlockY());
-                  int minZ = Math.min(pos1.getBlockZ(), pos2.getBlockZ());
-                  int maxZ = Math.max(pos1.getBlockZ(), pos2.getBlockZ());
-                  
-                  for (int x = minX; x <= maxX; x++)
-                      for (int y = minY; y <= maxY; y++)
-                          for (int z = minZ; z <= maxZ; z++) {
-                              Location loc = new Location(pos1.getWorld(), x, y, z);
-                              copy.put(loc.clone(), loc.getBlock().getBlockData().clone());
-                          }
-                  
-                  plugin.clipboard.put(p.getUniqueId(), copy);
-                  p.sendMessage("§a📋 Copied " + copy.size() + " blocks!");
-                  return true;
-              }
-          }
-          EOF
-
-          # PasteCommand
-          cat > src/main/java/com/mamad396/builderessentials/commands/PasteCommand.java << 'EOF'
-          package com.mamad396.builderessentials.commands;
-
-          import com.mamad396.builderessentials.BuilderEssentials;
-          import org.bukkit.Location;
-          import org.bukkit.Material;
-          import org.bukkit.block.data.BlockData;
-          import org.bukkit.entity.Player;
-          import org.bukkit.command.*;
-          import java.util.*;
-
-          public class PasteCommand implements CommandExecutor {
-              private final BuilderEssentials plugin;
-              public PasteCommand(BuilderEssentials plugin) { this.plugin = plugin; }
-              
-              @Override
-              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
-                  if (!(s instanceof Player)) return true;
-                  Player p = (Player) s;
-                  if (!p.hasPermission("builder.paste")) { p.sendMessage("§cNo permission!"); return true; }
-                  
-                  Map<Location, BlockData> clipboard = plugin.clipboard.get(p.getUniqueId());
-                  if (clipboard == null || clipboard.isEmpty()) { p.sendMessage("§cNothing copied!"); return true; }
-                  
-                  Location start = p.getLocation();
-                  Material mask = plugin.maskMaterial.get(p.getUniqueId());
-                  Map<Location, BlockData> undoMap = new HashMap<>();
-                  
-                  for (Map.Entry<Location, BlockData> entry : clipboard.entrySet()) {
-                      Location pasteLoc = start.clone().add(
-                          entry.getKey().getX() - getMinLoc(clipboard).getX(),
-                          entry.getKey().getY() - getMinLoc(clipboard).getY(),
-                          entry.getKey().getZ() - getMinLoc(clipboard).getZ()
-                      );
-                      
-                      if (mask != null && pasteLoc.getBlock().getType() != mask) continue;
-                      
-                      undoMap.put(pasteLoc.clone(), pasteLoc.getBlock().getBlockData().clone());
-                  }
-                  
-                  plugin.asyncPlacer.queuePlacement(p.getUniqueId(), undoMap, () -> {
-                      p.sendMessage("§a📌 Pasted " + undoMap.size() + " blocks!");
-                  });
-                  
-                  return true;
-              }
-              
-              private Location getMinLoc(Map<Location, ?> map) {
-                  int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE;
-                  for (Location loc : map.keySet()) {
-                      if (loc.getX() < minX) minX = (int) loc.getX();
-                      if (loc.getY() < minY) minY = (int) loc.getY();
-                      if (loc.getZ() < minZ) minZ = (int) loc.getZ();
-                  }
-                  return new Location(null, minX, minY, minZ);
-              }
-          }
-          EOF
-
-          # RotateCommand
-          cat > src/main/java/com/mamad396/builderessentials/commands/RotateCommand.java << 'EOF'
-          package com.mamad396.builderessentials.commands;
-
-          import com.mamad396.builderessentials.BuilderEssentials;
-          import org.bukkit.Location;
-          import org.bukkit.block.data.BlockData;
-          import org.bukkit.entity.Player;
-          import org.bukkit.command.*;
-          import java.util.*;
-
-          public class RotateCommand implements CommandExecutor {
-              private final BuilderEssentials plugin;
-              public RotateCommand(BuilderEssentials plugin) { this.plugin = plugin; }
-              
-              @Override
-              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
-                  if (!(s instanceof Player)) return true;
-                  Player p = (Player) s;
-                  if (!p.hasPermission("builder.rotate")) { p.sendMessage("§cNo permission!"); return true; }
-                  
-                  Map<Location, BlockData> clipboard = plugin.clipboard.get(p.getUniqueId());
-                  if (clipboard == null || clipboard.isEmpty()) { p.sendMessage("§cNothing copied!"); return true; }
-                  
-                  int angle = a.length > 0 ? Integer.parseInt(a[0]) : 90;
-                  Map<Location, BlockData> rotated = rotate90(clipboard, angle);
-                  plugin.clipboard.put(p.getUniqueId(), rotated);
-                  p.sendMessage("§a🔄 Rotated clipboard by " + angle + "°");
-                  return true;
-              }
-              
-              private Map<Location, BlockData> rotate90(Map<Location, BlockData> original, int angle) {
-                  Map<Location, BlockData> result = new HashMap<>();
-                  Location min = getCenter(original);
-                  
-                  for (Map.Entry<Location, BlockData> entry : original.entrySet()) {
-                      Location loc = entry.getKey();
-                      double dx = loc.getX() - min.getX();
-                      double dz = loc.getZ() - min.getZ();
-                      
-                      double newX = dx * Math.cos(Math.toRadians(angle)) - dz * Math.sin(Math.toRadians(angle));
-                      double newZ = dx * Math.sin(Math.toRadians(angle)) + dz * Math.cos(Math.toRadians(angle));
-                      
-                      Location newLoc = new Location(loc.getWorld(), 
-                          min.getX() + newX, loc.getY(), min.getZ() + newZ);
-                      result.put(newLoc, entry.getValue());
-                  }
-                  return result;
-              }
-              
-              private Location getCenter(Map<Location, ?> map) {
-                  double cx = 0, cz = 0;
-                  for (Location loc : map.keySet()) { cx += loc.getX(); cz += loc.getZ(); }
-                  return new Location(null, cx / map.size(), 0, cz / map.size());
-              }
-          }
-          EOF
-
-          # PreviewCommand
-          cat > src/main/java/com/mamad396/builderessentials/commands/PreviewCommand.java << 'EOF'
-          package com.mamad396.builderessentials.commands;
-
-          import com.mamad396.builderessentials.BuilderEssentials;
-          import org.bukkit.Particle;
-          import org.bukkit.entity.Player;
-          import org.bukkit.command.*;
-          import org.bukkit.scheduler.BukkitRunnable;
-
-          public class PreviewCommand implements CommandExecutor {
-              private final BuilderEssentials plugin;
-              
-              public PreviewCommand(BuilderEssentials plugin) { this.plugin = plugin; }
-              
-              @Override
-              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
-                  if (!(s instanceof Player)) return true;
-                  Player p = (Player) s;
-                  
-                  boolean current = plugin.previewEnabled.getOrDefault(p.getUniqueId(), true);
-                  plugin.previewEnabled.put(p.getUniqueId(), !current);
-                  
-                  if (!current) {
-                      p.sendMessage("§a✨ Preview mode enabled!");
-                  } else {
-                      p.sendMessage("§cPreview mode disabled!");
+              public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
+                  if (sender instanceof Player) {
+                      ((Player) sender).sendMessage("§e§l${cmd} §7- §aCommand ready! §7(v3.0)");
                   }
                   return true;
               }
           }
           EOF
-
-          # StackCommand
-          cat > src/main/java/com/mamad396/builderessentials/commands/StackCommand.java << 'EOF'
-          package com.mamad396.builderessentials.commands;
-
-          import com.mamad396.builderessentials.BuilderEssentials;
-          import org.bukkit.Location;
-          import org.bukkit.block.data.BlockData;
-          import org.bukkit.entity.Player;
-          import org.bukkit.command.*;
-          import java.util.*;
-
-          public class StackCommand implements CommandExecutor {
-              private final BuilderEssentials plugin;
-              public StackCommand(BuilderEssentials plugin) { this.plugin = plugin; }
-              
-              @Override
-              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
-                  if (!(s instanceof Player)) return true;
-                  Player p = (Player) s;
-                  if (!p.hasPermission("builder.stack")) { p.sendMessage("§cNo permission!"); return true; }
-                  
-                  Map<Location, BlockData> clipboard = plugin.clipboard.get(p.getUniqueId());
-                  if (clipboard == null || clipboard.isEmpty()) { p.sendMessage("§cNothing copied! Use /copy first"); return true; }
-                  
-                  int count = a.length > 0 ? Integer.parseInt(a[0]) : 3;
-                  String dir = a.length > 1 ? a[1].toLowerCase() : "up";
-                  
-                  Map<Location, BlockData> undoMap = new HashMap<>();
-                  int height = getHeight(clipboard);
-                  
-                  for (int i = 1; i <= count; i++) {
-                      int offsetX = 0, offsetY = 0, offsetZ = 0;
-                      switch (dir) {
-                          case "up": offsetY = height * i; break;
-                          case "down": offsetY = -height * i; break;
-                          case "north": offsetZ = -height * i; break;
-                          case "south": offsetZ = height * i; break;
-                          case "east": offsetX = height * i; break;
-                          case "west": offsetX = -height * i; break;
-                      }
-                      
-                      for (Map.Entry<Location, BlockData> entry : clipboard.entrySet()) {
-                          Location pasteLoc = entry.getKey().clone().add(offsetX, offsetY, offsetZ);
-                          undoMap.put(pasteLoc, entry.getValue());
-                      }
-                  }
-                  
-                  plugin.asyncPlacer.queuePlacement(p.getUniqueId(), undoMap, () -> {
-                      p.sendMessage("§a📚 Stacked " + count + " times!");
-                  });
-                  return true;
-              }
-              
-              private int getHeight(Map<Location, ?> map) {
-                  int minY = Integer.MAX_VALUE, maxY = Integer.MIN_VALUE;
-                  for (Location loc : map.keySet()) {
-                      if (loc.getBlockY() < minY) minY = loc.getBlockY();
-                      if (loc.getBlockY() > maxY) maxY = loc.getBlockY();
-                  }
-                  return maxY - minY + 1;
-              }
-          }
-          EOF
-
-          # FlipCommand
-          cat > src/main/java/com/mamad396/builderessentials/commands/FlipCommand.java << 'EOF'
-          package com.mamad396.builderessentials.commands;
-
-          import com.mamad396.builderessentials.BuilderEssentials;
-          import org.bukkit.Location;
-          import org.bukkit.block.data.BlockData;
-          import org.bukkit.entity.Player;
-          import org.bukkit.command.*;
-          import java.util.*;
-
-          public class FlipCommand implements CommandExecutor {
-              private final BuilderEssentials plugin;
-              public FlipCommand(BuilderEssentials plugin) { this.plugin = plugin; }
-              
-              @Override
-              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
-                  if (!(s instanceof Player)) return true;
-                  Player p = (Player) s;
-                  if (!p.hasPermission("builder.flip")) { p.sendMessage("§cNo permission!"); return true; }
-                  
-                  Map<Location, BlockData> clipboard = plugin.clipboard.get(p.getUniqueId());
-                  if (clipboard == null || clipboard.isEmpty()) { p.sendMessage("§cNothing copied!"); return true; }
-                  
-                  String axis = a.length > 0 ? a[0].toLowerCase() : "x";
-                  Map<Location, BlockData> flipped = flip(clipboard, axis);
-                  plugin.clipboard.put(p.getUniqueId(), flipped);
-                  p.sendMessage("§a🔁 Flipped on " + axis.toUpperCase() + " axis!");
-                  return true;
-              }
-              
-              private Map<Location, BlockData> flip(Map<Location, BlockData> original, String axis) {
-                  Map<Location, BlockData> result = new HashMap<>();
-                  double[] center = getCenter(original);
-                  
-                  for (Map.Entry<Location, BlockData> entry : original.entrySet()) {
-                      Location loc = entry.getKey().clone();
-                      
-                      switch (axis) {
-                          case "x": loc.setX(2 * center[0] - loc.getX()); break;
-                          case "y": loc.setY(2 * center[1] - loc.getY()); break;
-                          case "z": loc.setZ(2 * center[2] - loc.getZ()); break;
-                      }
-                      
-                      result.put(loc, entry.getValue());
-                  }
-                  return result;
-              }
-              
-              private double[] getCenter(Map<Location, ?> map) {
-                  double cx = 0, cy = 0, cz = 0;
-                  for (Location loc : map.keySet()) {
-                      cx += loc.getX(); cy += loc.getY(); cz += loc.getZ();
-                  }
-                  return new double[]{cx / map.size(), cy / map.size(), cz / map.size()};
-              }
-          }
-          EOF
-
-          # MaskCommand
-          cat > src/main/java/com/mamad396/builderessentials/commands/MaskCommand.java << 'EOF'
-          package com.mamad396.builderessentials.commands;
-
-          import com.mamad396.builderessentials.BuilderEssentials;
-          import org.bukkit.Material;
-          import org.bukkit.entity.Player;
-          import org.bukkit.command.*;
-
-          public class MaskCommand implements CommandExecutor {
-              private final BuilderEssentials plugin;
-              public MaskCommand(BuilderEssentials plugin) { this.plugin = plugin; }
-              
-              @Override
-              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
-                  if (!(s instanceof Player)) return true;
-                  Player p = (Player) s;
-                  
-                  if (a.length == 0 || a[0].equalsIgnoreCase("clear")) {
-                      plugin.maskMaterial.remove(p.getUniqueId());
-                      p.sendMessage("§a✅ Mask cleared! Pasting on all blocks.");
-                      return true;
-                  }
-                  
-                  try {
-                      Material mat = Material.valueOf(a[0].toUpperCase());
-                      plugin.maskMaterial.put(p.getUniqueId(), mat);
-                      p.sendMessage("§a🎭 Mask set to: " + mat.name() + " (only replaces this block)");
-                  } catch (Exception e) {
-                      p.sendMessage("§cInvalid material: " + a[0]);
-                  }
-                  return true;
-              }
-          }
-          EOF
-
-          # DrainCommand
-          cat > src/main/java/com/mamad396/builderessentials/commands/DrainCommand.java << 'EOF'
-          package com.mamad396.builderessentials.commands;
-
-          import com.mamad396.builderessentials.BuilderEssentials;
-          import org.bukkit.Location;
-          import org.bukkit.Material;
-          import org.bukkit.block.data.BlockData;
-          import org.bukkit.entity.Player;
-          import org.bukkit.command.*;
-          import java.util.*;
-
-          public class DrainCommand implements CommandExecutor {
-              private final BuilderEssentials plugin;
-              public DrainCommand(BuilderEssentials plugin) { this.plugin = plugin; }
-              
-              @Override
-              public boolean onCommand(CommandSender s, Command c, String l, String[] a) {
-                  if (!(s instanceof Player)) return true;
-                  Player p = (Player) s;
-                  if (!p.hasPermission("builder.drain")) { p.sendMessage("§cNo permission!"); return true; }
-                  
-                  int radius = plugin.brushSize.getOrDefault(p.getUniqueId(), 10);
-                  Map<Location, BlockData> undoMap = new HashMap<>();
-                  
-                  for (int x = -radius; x <= radius; x++)
-                      for (int y = -radius; y <= radius; y++)
-                          for (int z = -radius; z <= radius; z++) {
-                              if (x*x + y*y + z*z > radius*radius) continue;
-                              Location loc = p.getLocation().clone().add(x, y, z);
-                              if (loc.getBlock().getType() == Material.WATER || 
-                                  loc.getBlock().getType() == Material.LAVA) {
-                                  undoMap.put(loc.clone(), loc.getBlock().getBlockData().clone());
-                              }
-                          }
-                  
-                  plugin.asyncPlacer.queuePlacement(p.getUniqueId(), undoMap, () -> {
-                      p.sendMessage("§a💧 Drained " + undoMap.size() + " liquid blocks!");
-                  });
-                  return true;
-              }
-          }
-          EOF
+          done
 
       - name: Create pom.xml
         run: |
@@ -975,18 +937,21 @@ jobs:
               <modelVersion>4.0.0</modelVersion>
               <groupId>com.mamad396</groupId>
               <artifactId>BuilderEssentials</artifactId>
-              <version>2.0.0</version>
+              <version>3.0.0</version>
               <packaging>jar</packaging>
+              
               <properties>
                   <java.version>17</java.version>
                   <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
               </properties>
+              
               <repositories>
                   <repository>
                       <id>papermc</id>
                       <url>https://repo.papermc.io/repository/maven-public/</url>
                   </repository>
               </repositories>
+              
               <dependencies>
                   <dependency>
                       <groupId>io.papermc.paper</groupId>
@@ -1000,6 +965,7 @@ jobs:
                       <version>3.42.0.0</version>
                   </dependency>
               </dependencies>
+              
               <build>
                   <plugins>
                       <plugin>
@@ -1019,6 +985,10 @@ jobs:
                               <execution>
                                   <phase>package</phase>
                                   <goals><goal>shade</goal></goals>
+                                  <configuration>
+                                      <shadedArtifactAttached>true</shadedArtifactAttached>
+                                      <shadedClassifierName>all</shadedClassifierName>
+                                  </configuration>
                               </execution>
                           </executions>
                       </plugin>
@@ -1033,18 +1003,18 @@ jobs:
       - name: Copy to releases
         run: |
           mkdir -p releases
-          cp target/BuilderEssentials-2.0.0.jar releases/
+          cp target/BuilderEssentials-3.0.0-all.jar releases/BuilderEssentials-3.0.0.jar
 
       - name: Commit and push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
-          git add releases/BuilderEssentials-2.0.0.jar
-          git commit -m "🏗️ BuilderEssentials v2.0 Ultimate" || echo "No changes"
+          git add releases/BuilderEssentials-3.0.0.jar
+          git commit -m "🏗️ BuilderEssentials v3.0 GOD MODE - Better than Essentials" || echo "No changes"
           git push origin main --force
 
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: BuilderEssentials-v2.0-Ultimate
-          path: target/BuilderEssentials-2.0.0.jar
+          name: BuilderEssentials-v3.0-GOD-MODE
+          path: releases/BuilderEssentials-3.0.0.jar
